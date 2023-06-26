@@ -72,32 +72,12 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
     }
 
     // exponent (bits 30 to 23)
-    var unadjustedExp = 0 // index of the first 1 in the mantissa
-    var i = 0
-    var found = false
-
-    // try to find first one in the whole part of mantissa
-    while(i < whole.length() && !found) {
-      if(whole(i) == '1') {
-        unadjustedExp = whole.length() - i - 1
-        found = true
-      }
-      i += 1
-    }
-
-    // try to find first one in the fraction part of mantissa
-    if(!found) {
-      i = 0
-      while(i < frac.length() && !found) {
-        if(frac(i) == '1') {
-          unadjustedExp = -1 * (i + 1)
-          found = true
-        }
-        i += 1
-      }
-    }
-
+    val indexInWhole = whole.indexOf('1')
+    val indexInFrac = frac.indexOf('1')
+    val unadjustedExp = if(indexInWhole != -1)  whole.length() - 1 - indexInWhole 
+                        else                    -1 * (indexInFrac + 1)
     var exponent = unadjustedExp + scala.math.pow(2, expWidth - 1).toLong - 1L
+
     for(i <- 7 to 0 by -1) {
       if(exponent % 2 == 1) {
         bits += scala.math.pow(2, 30 - i).toLong
@@ -106,22 +86,20 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
       exponent = exponent.toInt
     }
 
-    // true means round up, false means round down (do nothing)
+    // 1 (true) means round up, 0 (false) means round down (do nothing)
     var roundUp = mantissa.substring(23, 26) match {
-      case "100" => false // if(mantissa(22) == '1') true else false
-      case "101" => true
-      case "110" => true
-      case "111" => true
-      case _ => false
+      case "100" => 0 // if(mantissa(22) == '1') 1 else 0
+      case "101" => 1
+      case "110" => 1
+      case "111" => 1
+      case _ => 0
     }
-
-    if(roundUp) {
-      bits += 1
-    }
+    bits += roundUp
 
     return bits
   }
 
+  // calculates the force
   def calc(m1x: scala.Double, m1y: scala.Double, m1z: scala.Double, m2x: scala.Double, m2y: scala.Double, m2z: scala.Double, sigma6: scala.Double, epsilon: scala.Double): scala.Float = {
     val delx = m2x.toFloat - m1x.toFloat
     val dely = m2y.toFloat - m1y.toFloat
@@ -134,9 +112,8 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing basic calc" in {
-    // 11 53 for doubles
-    // 8 24 for floats
-    // 32 point floating point representation
+    // doubles: exp=11 / sig=53
+    // floats: exp=8 / sig=24
     
     // test conversion from decimal to 32 point floating point
     assert(decimal_to_32_bit(1.9) == 1072902963)
