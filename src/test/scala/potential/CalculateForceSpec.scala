@@ -160,7 +160,6 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
         }
 
         dut.io.validOut.expect(true)
-        // assert(dut.io.dataOut.bits.peek() == expectedForce || dut.io.dataOut.bits.peek() + 1.U == expectedForce)
         dut.io.dataOut.bits.expect(expectedForce)
     }
   }
