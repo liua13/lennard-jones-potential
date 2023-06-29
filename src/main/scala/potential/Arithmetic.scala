@@ -55,7 +55,7 @@ abstract class ArithmeticOps[T <: Data](self: T) {
   def minimum: T
 
   // Optional parameters, which only need to be defined if you want to enable various optimizations for transformers
-  def /(denom: T): Option[DivisionResult] = None
+  def /(denom: T, inValid: Bool): Option[DivisionResult] = None
   def divider2(denom_t: T): Option[(DecoupledIO[T], DecoupledIO[T])] = None
   def divider(denom_t: UInt): Option[(DecoupledIO[UInt], DecoupledIO[T])] = None
   def sqrt: Option[(DecoupledIO[UInt], DecoupledIO[T])] = None
@@ -539,7 +539,7 @@ object Arithmetic {
       override def identity: Float = Cat(0.U(2.W), ~(0.U((self.expWidth-1).W)), 0.U((self.sigWidth-1).W)).asTypeOf(self)
       override def minimum: Float = Cat(1.U, ~(0.U(self.expWidth.W)), 0.U((self.sigWidth-1).W)).asTypeOf(self)
 
-      override def /(denom: Float): Option[DivisionResult] = {
+      override def /(denom: Float, inValid: Bool): Option[DivisionResult] = {
         val denom_rec = recFNFromFN(denom.expWidth, denom.sigWidth, denom.bits)
         val self_rec = recFNFromFN(self.expWidth, self.sigWidth, self.bits)
 
@@ -552,7 +552,7 @@ object Arithmetic {
         val divider = Module(new DivSqrtRecFN_small(self.expWidth, self.sigWidth, 0))
         divider.io.roundingMode := consts.round_near_even
         divider.io.detectTininess := consts.tininess_afterRounding
-        divider.io.inValid := true.B
+        divider.io.inValid := inValid
         divider.io.sqrtOp := false.B
 
         divider.io.a := self_rec

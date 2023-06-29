@@ -1,41 +1,51 @@
-// package potential
+package potential
 
-// import chisel3._
-// import chiseltest._
-// import org.scalatest.freespec.AnyFreeSpec
-// import chisel3.experimental.BundleLiterals._
-// import potential.Arithmetic.FloatArithmetic._
-// import chisel3.iotesters.{PeekPokeTester}
+import chisel3._
+import chiseltest._
+import org.scalatest.freespec.AnyFreeSpec
+import chisel3.experimental.BundleLiterals._
+import potential.Arithmetic.FloatArithmetic._
 
-// /**
-//   * sbt 'testOnly potential.LUTSpec'
-//   * sbt clean test
-//   */
-// class ArithmeticSpec(f: FloatArithmetic) extends PeekPokeTester(f) {
-//   // val num = Float(expWidth=8, sigWidth=24)
-//   // // num.bits := 1065353216.U
-//   // num.bits.poke(1065353216)
-//   // val denom = Float(expWidth=8, sigWidth=24)
-//   // // denom.bits := 1065353216.U
-//   // denom.bits.poke(1065353216)
+/**
+  * sbt 'testOnly potential.LUTSpec'
+  * sbt clean test
+  */
+class ArithmeticSpec extends AnyFreeSpec with ChiselScalatestTester {
+  "Testing MiniDivider" in {
+    test(new MiniDivider(expWidth=8, sigWidth=24)) { dut =>
+      while(!dut.input.ready.peek().litToBoolean) {
+        dut.clock.step(1) 
+      }
 
-//   // val result = (num / denom).get
-//   // assert(result.valid == true.B)
-//   // assert(result.bits.bits == num.bits)
+      dut.input.bits.numerator.bits.poke(1065353216)
+      dut.input.bits.denominator.bits.poke(1077936128)
+      dut.input.valid.poke(true)
 
-//   // "Testing basic division" in {
-//   //   // 11 53 for doubles
-//   //   // 8 24 for floats
-//   //   // 32 point floating point representation
-//   //   test(new Float(expWidth=8, sigWidth=24)) { dut =>
-//   //     dut.bits := 1065353216.U
+      while(!dut.output.valid.peek().litToBoolean) {
+        dut.clock.step(1) 
+        dut.input.valid.poke(false)
+      }
 
-//   //     val denom = Float(expWidth=8, sigWidth=24)
-//   //     denom.bits := 1065353216.U
+      dut.output.valid.expect(true)
+      dut.output.bits.data.bits.expect(1051372203)
 
-//   //     val result = dut / denom
-//   //     assert(result.valid)
-//   //     assert(result.bits.bits == dut.bits)
-//   //   }
-//   // }
-// }
+      // ----------
+      while(!dut.input.ready.peek().litToBoolean) {
+        dut.clock.step(1) 
+      }
+
+      dut.input.bits.numerator.bits.poke(1065353216)
+      dut.input.bits.denominator.bits.poke(1065353216)
+      dut.input.valid.poke(true)
+
+      while(!dut.output.valid.peek().litToBoolean) {
+        dut.clock.step(1) 
+        dut.input.valid.poke(false)
+      }
+
+      dut.output.valid.expect(true)
+      dut.output.bits.data.bits.expect(1065353216)
+
+    }
+  }
+}
