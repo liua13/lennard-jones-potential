@@ -17,23 +17,6 @@ class FractionOutputBundle(expWidth: Int, sigWidth: Int) extends Bundle {
 }
 
 class MiniDivider(expWidth: Int, sigWidth: Int) extends Module {
-    // val io = IO(new Bundle {
-    //     val validIn = Input(Bool())
-    //     val numerator = Input(Float(expWidth, sigWidth))
-    //     val denominator = Input(Float(expWidth, sigWidth))
-    //     val validOut = Output(Bool())
-    //     val dataOut = Output(Float(expWidth, sigWidth))
-    //     val dividerReady = Output(Bool())
-    // })
-
-    // val dividerValidIn = RegInit(false.B)
-    // val divider = (numerator./(denominator, dividerValidIn)).get
-    // dividerValidIn := divider.ready && validIn
-
-    // validOut := divider.valid
-    // dataOut := divider.bits
-    // dividerReady := divider.ready
-
     val input = IO(Flipped(Decoupled(new FractionInputBundle(expWidth, sigWidth))))
     val output = IO(Decoupled(new FractionOutputBundle(expWidth, sigWidth)))
 

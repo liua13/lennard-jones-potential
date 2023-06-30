@@ -12,34 +12,6 @@ case class MoleculeBundle(dataWidth: Int, expWidth: Int, sigWidth: Int) extends 
     val z = Float(expWidth, sigWidth)
 }
 
-case class CFInputBundle(log2dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Bundle {
-    val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-    val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-    val sigma6Table = new Bundle {
-        val ready = Bool()
-        val validOut = Bool()
-        val dataOut = Float(expWidth, sigWidth)
-    }
-    val epsilonTable = new Bundle {
-        val ready = Bool()
-        val validOut = Bool()
-        val dataOut = Float(expWidth, sigWidth)
-    }
-}
-
-case class CFOutputBundle(log2dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
-    val data = Float(expWidth, sigWidth)
-    val error = Bool()
-    val sigma6Table = new Bundle {
-        val validIn = Bool()
-        val index = UInt(log2dim.W)
-    }
-    val epsilonTable = new Bundle {
-        val validIn = Bool()
-        val index = UInt(log2dim.W)
-    }
-}
-
 class Initialize(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
         val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
@@ -50,8 +22,6 @@ class Initialize(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
         val error = Bool()
         val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
         val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-        // val sigma6Index = UInt(dataWidth.W)
-        // val epsilonIndex = UInt(dataWidth.W)
     }))
 
     input.ready := output.ready || !output.valid 
@@ -62,19 +32,7 @@ class Initialize(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
         input.bits.molecule1.z === input.bits.molecule2.z
     output.bits.molecule1 := input.bits.molecule1
     output.bits.molecule2 := input.bits.molecule2
-    // output.bits.sigma6Index := input.bits.molecule1.id << log2dim.U + input.bits.molecule2.id
-    // output.bits.epsilonIndex := input.bits.molecule1.id << log2dim.U + input.bits.molecule2.id
 }
-
-// class LookUp(dataWidth:Int, expWidth: Int, sigWidth: Int) extends Module {
-//     val input = IO(Decoupled(new Bundle {
-//         val error = Bool()
-//         val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-//         val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-//     }))
-
-//     val 
-// }
 
 class CalcRsq(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
@@ -185,33 +143,49 @@ class CalcForce(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     output.bits.force := fortyEight * input.bits.sr6 * (input.bits.sr6 - half) * input.bits.sr2 * input.bits.epsilon
 }
 
-class CalculateForce(log2dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module { 
-    val input = IO(Flipped(Decoupled(new CFInputBundle(log2dim, dataWidth, expWidth, sigWidth))))
-    val output = IO(Decoupled(new CFOutputBundle(log2dim, expWidth, sigWidth)))
-    
+case class CFInputBundle(dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+    val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
+    val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
+}
+
+case class CFOutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+    val error = Bool()
+    val data = Float(expWidth, sigWidth)
+}
+
+class CalculateForce(val dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module { 
+    val input = IO(Flipped(Decoupled(new CFInputBundle(dim, dataWidth, expWidth, sigWidth))))
+    val output = IO(Decoupled(new CFOutputBundle(dim, expWidth, sigWidth)))
+
+    val sigma6Table = Module(new LUT(dim * dim, dataWidth, expWidth, sigWidth))
+    val sigma6WriteIO = IO(new LUTWriteIO(dim * dim, dataWidth, expWidth, sigWidth))
+    sigma6Table.writeIO <> sigma6WriteIO
+
+    val epsilonTable = Module(new LUT(dim * dim, dataWidth, expWidth, sigWidth))
+    val epsilonWriteIO = IO(new LUTWriteIO(dim * dim, dataWidth, expWidth, sigWidth))
+    epsilonTable.writeIO <> epsilonWriteIO
+
     val initialize = Module(new Initialize(dataWidth, expWidth, sigWidth))
     val calcRsq = Module(new CalcRsq(dataWidth, expWidth, sigWidth))
     val calcSr2 = Module(new CalcSr2(dataWidth, expWidth, sigWidth))
     val calcSr6 = Module(new CalcSr6(dataWidth, expWidth, sigWidth))
     val calcForce = Module(new CalcForce(dataWidth, expWidth, sigWidth))
 
+    // both initialize and the LUT should complete in one clock cycle
     initialize.input.valid := input.valid
     initialize.input.bits.molecule1 := input.bits.molecule1
     initialize.input.bits.molecule2 := input.bits.molecule2
     initialize.output.ready := calcRsq.input.ready
 
-    output.bits.sigma6Table.validIn := input.valid && input.bits.sigma6Table.ready
-    output.bits.sigma6Table.index := input.bits.molecule1.id << log2dim.U + input.bits.molecule2.id
+    sigma6Table.readIO.addr := input.bits.molecule1.id << log2Up(dim).U + input.bits.molecule2.id
+    epsilonTable.readIO.addr := input.bits.molecule1.id << log2Up(dim).U + input.bits.molecule2.id
 
-    output.bits.epsilonTable.validIn := input.valid && input.bits.epsilonTable.ready
-    output.bits.epsilonTable.index := input.bits.molecule1.id << log2dim.U + input.bits.molecule2.id
-
-    calcRsq.input.valid := initialize.output.valid && input.bits.sigma6Table.validOut && input.bits.epsilonTable.validOut
+    calcRsq.input.valid := initialize.output.valid
     calcRsq.input.bits.error := initialize.output.bits.error
     calcRsq.input.bits.molecule1 := initialize.output.bits.molecule1
     calcRsq.input.bits.molecule2 := initialize.output.bits.molecule2
-    calcRsq.input.bits.sigma6 := input.bits.sigma6Table.dataOut
-    calcRsq.input.bits.epsilon := input.bits.epsilonTable.dataOut
+    calcRsq.input.bits.sigma6 := sigma6Table.readIO.data
+    calcRsq.input.bits.epsilon := epsilonTable.readIO.data
     calcRsq.output.ready := calcSr2.input.ready
 
     calcSr2.input.valid := calcRsq.output.valid
