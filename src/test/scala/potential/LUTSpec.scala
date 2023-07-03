@@ -12,15 +12,15 @@ import chisel3.experimental.BundleLiterals._
 class LUTSpec extends AnyFreeSpec with ChiselScalatestTester {
 
   "Testing 4x4 table (standard loop)" in {
-    test(new LUT(dim2=16, dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
-      for(i <- 0 until dut.dim2) { 
+    test(new LUT(dim=4, expWidth=8, sigWidth=24)) { dut =>
+      for(i <- 0 until dut.dim * dut.dim) { 
         dut.writeIO.validIn.poke(true)
         dut.writeIO.addr.poke(i)
         dut.writeIO.data.bits.poke(i)
         dut.clock.step(1)
       }
       
-      for(i <- 0 until dut.dim2) { 
+      for(i <- 0 until dut.dim * dut.dim) { 
         dut.readIO.addr.poke(i)
         dut.clock.step(1)
         dut.readIO.data.bits.expect(i)

@@ -11,6 +11,22 @@ import chisel3.experimental.BundleLiterals._
   * sbt clean test
   */
 class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
+  def get_double(): scala.Double = {
+    var v = 0.0
+    while(v == 0) {
+      v = r.nextDouble() * r.nextInt(100)
+    }
+    return v
+  }
+
+  def get_float(): scala.Float = {
+    var v = 0.0F
+    while(v == 0) {
+      v = (r.nextFloat() * r.nextInt(100)).toFloat
+    }
+    return v
+  }
+
   // gets the whole part of the number
   def whole_mantissa(num: scala.Double): String = {
     var result = ""
@@ -102,7 +118,7 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
 
     // 1 (true) means round up, 0 (false) means round down (do nothing)
     var roundUp = mantissa.substring(23, 26) match {
-      case "100" => if(mantissa(22) == '1') 1 else 0 // 0
+      case "100" => 0 // if(mantissa(22) == '1') 1 else 0 // 0
       case "101" => 1
       case "110" => 1
       case "111" => 1
@@ -153,7 +169,18 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
     return result
   }
 
-  // calculates the force
+  // // calculates the force
+  // def calc(m1x: scala.Float, m1y: scala.Float, m1z: scala.Float, m2x: scala.Float, m2y: scala.Float, m2z: scala.Float, sigma6: scala.Float, epsilon: scala.Float): scala.Float = {
+  //   val delx: scala.Float = m2x - m1x
+  //   val dely: scala.Float = m2y - m1y
+  //   val delz: scala.Float = m2z - m1z
+  //   val rsq: scala.Float = delx * delx + dely * dely + delz * delz
+  //   val sr2: scala.Float = 1.0F / rsq
+  //   val sr6: scala.Float = sr2 * sr2 * sr2 * sigma6
+  //   val force: scala.Float = 48.0F * sr6 * (sr6 - 0.5F) * sr2 * epsilon
+  //   return force
+  // }
+
   def calc(m1x: scala.Double, m1y: scala.Double, m1z: scala.Double, m2x: scala.Double, m2y: scala.Double, m2z: scala.Double, sigma6: scala.Double, epsilon: scala.Double): scala.Float = {
     val delx: scala.Float = m2x.toFloat - m1x.toFloat
     val dely: scala.Float = m2y.toFloat - m1y.toFloat
@@ -182,52 +209,52 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   val ERROR = 0.000001
 
   "Testing conversion from decimal to floating 32 bit" in {
-    assert(Math.abs(1072902963 - decimal_to_floating32(1.9)) <= 5)
-    assert(Math.abs(1065353216 - decimal_to_floating32(1.0)) <= 5)
-    assert(Math.abs(1073741824 - decimal_to_floating32(2.0)) <= 5)
-    assert(Math.abs(1077936128 - decimal_to_floating32(3.0)) <= 5)
-    assert(Math.abs(1087981486 - decimal_to_floating32(6.79)) <= 5)
-    assert(Math.abs(3253096939L - decimal_to_floating32(-28.79)) <= 5)
-    assert(Math.abs(1063675494 - decimal_to_floating32(0.9)) <= 5)
-    assert(Math.abs(0 - decimal_to_floating32(0.0)) <= 5)
+    assert(Math.abs(1072902963 - decimal_to_floating32(1.9)) <= ERROR)
+    assert(Math.abs(1065353216 - decimal_to_floating32(1.0)) <= ERROR)
+    assert(Math.abs(1073741824 - decimal_to_floating32(2.0)) <= ERROR)
+    assert(Math.abs(1077936128 - decimal_to_floating32(3.0)) <= ERROR)
+    assert(Math.abs(1087981486 - decimal_to_floating32(6.79)) <= ERROR)
+    assert(Math.abs(3253096939L - decimal_to_floating32(-28.79)) <= ERROR)
+    assert(Math.abs(1063675494 - decimal_to_floating32(0.9)) <= ERROR)
+    assert(Math.abs(0 - decimal_to_floating32(0.0)) <= ERROR)
   }
 
   "Testing conversion from floating 32 bit to decimal" in {
-    assert(Math.abs(1.9 - floating32_to_decimal(1072902963)) <= ERROR)
-    assert(Math.abs(1.0 - floating32_to_decimal(1065353216)) <= ERROR)
-    assert(Math.abs(2.0 - floating32_to_decimal(1073741824)) <= ERROR)
-    assert(Math.abs(3.0 - floating32_to_decimal(1077936128)) <= ERROR)
-    assert(Math.abs(6.79 - floating32_to_decimal(1087981486)) <= ERROR)
-    assert(Math.abs(-28.79 - floating32_to_decimal(3253096939L)) <= ERROR)
-    assert(Math.abs(0.9 - floating32_to_decimal(1063675494)) <= ERROR)
-    assert(Math.abs(0.0 - floating32_to_decimal(0)) <= ERROR)
+    assert(Math.abs(1.9F - floating32_to_decimal(1072902963)) <= ERROR)
+    assert(Math.abs(1.0F - floating32_to_decimal(1065353216)) <= ERROR)
+    assert(Math.abs(2.0F - floating32_to_decimal(1073741824)) <= ERROR)
+    assert(Math.abs(3.0F - floating32_to_decimal(1077936128)) <= ERROR)
+    assert(Math.abs(6.79F - floating32_to_decimal(1087981486)) <= ERROR)
+    assert(Math.abs(-28.79F - floating32_to_decimal(3253096940L)) <= ERROR)
+    assert(Math.abs(0.9F - floating32_to_decimal(1063675494)) <= ERROR)
+    assert(Math.abs(0.0F - floating32_to_decimal(0)) <= ERROR)
   }
 
   "Testing decimal to and from floating 32 bit conversion" in {
-    assert(Math.abs(1.9 - floating32_to_decimal(decimal_to_floating32(1.9))) <= ERROR)
-    assert(Math.abs(1.0 - floating32_to_decimal(decimal_to_floating32(1.0))) <= ERROR)
-    assert(Math.abs(2.0 - floating32_to_decimal(decimal_to_floating32(2.0))) <= ERROR)
-    assert(Math.abs(3.0 - floating32_to_decimal(decimal_to_floating32(3.0))) <= ERROR)
-    assert(Math.abs(6.79 - floating32_to_decimal(decimal_to_floating32(6.79))) <= ERROR)
-    assert(Math.abs(-28.79 - floating32_to_decimal(decimal_to_floating32(-28.79))) <= ERROR)
-    assert(Math.abs(0.9 - floating32_to_decimal(decimal_to_floating32(0.9))) <= ERROR)
-    assert(Math.abs(0.0 - floating32_to_decimal(decimal_to_floating32(0))) <= ERROR)
+    assert(Math.abs(1.9F - floating32_to_decimal(decimal_to_floating32(1.9F))) <= ERROR)
+    assert(Math.abs(1.0F - floating32_to_decimal(decimal_to_floating32(1.0F))) <= ERROR)
+    assert(Math.abs(2.0F - floating32_to_decimal(decimal_to_floating32(2.0F))) <= ERROR)
+    assert(Math.abs(3.0F - floating32_to_decimal(decimal_to_floating32(3.0F))) <= ERROR)
+    assert(Math.abs(6.79F - floating32_to_decimal(decimal_to_floating32(6.79F))) <= ERROR)
+    assert(Math.abs(-28.79F - floating32_to_decimal(decimal_to_floating32(-28.79F))) <= ERROR)
+    assert(Math.abs(0.9F - floating32_to_decimal(decimal_to_floating32(0.9F))) <= ERROR)
+    assert(Math.abs(0.0F - floating32_to_decimal(decimal_to_floating32(0F))) <= ERROR)
   }
 
   "Testing Initialize module" in {
-    test(new Initialize(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new Initialize(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val m1x = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1y = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1z = (r.nextDouble() * r.nextInt(100)).toFloat
+        val m1x = get_float()
+        val m1y = get_float()
+        val m1z = get_float()
 
-        val m2x = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m2y = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m2z = (r.nextDouble() * r.nextInt(100)).toFloat
+        val m2x = get_float()
+        val m2y = get_float()
+        val m2z = get_float()
 
         dut.input.bits.molecule1.id.poke(1)
         dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
@@ -264,15 +291,15 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing Initialize module (invalid input)" in {
-    test(new Initialize(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new Initialize(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val m1x = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1y = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1z = (r.nextDouble() * r.nextInt(100)).toFloat
+        val m1x = get_float()
+        val m1y = get_float()
+        val m1z = get_float()
         
         dut.input.bits.molecule1.id.poke(1)
         dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
@@ -301,27 +328,27 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcRsq module" in {
-    test(new CalcRsq(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcRsq(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val m1x = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1y = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1z = (r.nextDouble() * r.nextInt(100)).toFloat
+        val m1x = get_float()
+        val m1y = get_float()
+        val m1z = get_float()
 
-        val m2x = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m2y = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m2z = (r.nextDouble() * r.nextInt(100)).toFloat
+        val m2x = get_float()
+        val m2y = get_float()
+        val m2z = get_float()
 
         val delx = (m2x.toFloat - m1x.toFloat).toFloat
         val dely = (m2y.toFloat - m1y.toFloat).toFloat
         val delz = (m2z.toFloat - m1z.toFloat).toFloat
         val rsq = (delx * delx + dely * dely + delz * delz).toFloat
 
-        val sigma6 = r.nextDouble() * r.nextInt(100)
-        val epsilon = r.nextDouble() * r.nextInt(100)
+        val sigma6 = get_float()
+        val epsilon = get_float()
         
         dut.input.bits.error.poke(false)
         dut.input.bits.molecule1.id.poke(1)
@@ -348,7 +375,8 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
         dut.output.bits.error.expect(false)
         dut.input.bits.sigma6.bits.expect(decimal_to_floating32(sigma6))
         dut.input.bits.epsilon.bits.expect(decimal_to_floating32(epsilon))
-        assert(Math.abs(rsq - floating32_to_decimal(dut.output.bits.rsq.bits.peek().litValue.toLong)) <= ERROR)
+        // assert(Math.abs((rsq - floating32_to_decimal(dut.output.bits.rsq.bits.peek().litValue.toLong))) <= ERROR)
+        assert(Math.abs((rsq - floating32_to_decimal(dut.output.bits.rsq.bits.peek().litValue.toLong)) / rsq) <= ERROR)
 
         dut.clock.step(1)
         dut.output.ready.poke(true)
@@ -357,18 +385,18 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcRsq module (invalid input)" in {
-    test(new CalcRsq(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcRsq(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val m1x = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1y = (r.nextDouble() * r.nextInt(100)).toFloat
-        val m1z = (r.nextDouble() * r.nextInt(100)).toFloat
+        val m1x = get_float()
+        val m1y = get_float()
+        val m1z = get_float()
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
+        val sigma6 = get_float()
+        val epsilon = get_float()
         
         dut.input.bits.error.poke(true)
         dut.input.bits.molecule1.id.poke(1)
@@ -401,18 +429,15 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcSr2 module" in {
-    test(new CalcSr2(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcSr2(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
-        var rsq = 0.0
-        while(rsq == 0) {
-          rsq = (r.nextDouble() * r.nextInt(100)).toFloat
-        }
+        val sigma6 = get_float()
+        val epsilon = get_float()
+        val rsq = get_float()
         val sr2 = (1.0 / rsq).toFloat
         
         dut.input.bits.error.poke(false)
@@ -431,7 +456,8 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
         dut.output.bits.error.expect(false)
         dut.output.bits.sigma6.bits.expect(decimal_to_floating32(sigma6))
         dut.output.bits.epsilon.bits.expect(decimal_to_floating32(epsilon))
-        assert(Math.abs(sr2 - floating32_to_decimal(dut.output.bits.sr2.bits.peek().litValue.toLong)) <= ERROR)
+        // assert(Math.abs((sr2 - floating32_to_decimal(dut.output.bits.sr2.bits.peek().litValue.toLong))) <= ERROR)
+        assert(Math.abs((sr2 - floating32_to_decimal(dut.output.bits.sr2.bits.peek().litValue.toLong)) / sr2) <= ERROR)
         
         dut.clock.step(1)
         dut.output.ready.poke(true)
@@ -440,15 +466,15 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcSr2 module (invalid input)" in {
-    test(new CalcSr2(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcSr2(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
-        val rsq = (r.nextDouble() * r.nextInt(100)).toFloat
+        val sigma6 = get_float()
+        val epsilon = get_float()
+        val rsq = get_float()
         
         dut.input.bits.error.poke(true)
         dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
@@ -472,16 +498,16 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcSr6 module" in {
-    test(new CalcSr6(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcSr6(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr2 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr6 = (sr2 * sr2 * sr2 * sigma6.toFloat).toFloat
+        val sigma6 = get_float()
+        val epsilon = get_float()
+        val sr2 = get_float()
+        val sr6 = (sr2 * sr2 * sr2 * sigma6).toFloat
         
         dut.input.bits.error.poke(false)
         dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
@@ -499,8 +525,8 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
         dut.output.bits.error.expect(false)
         dut.output.bits.epsilon.bits.expect(decimal_to_floating32(epsilon))
         dut.output.bits.sr2.bits.expect(decimal_to_floating32(sr2))
-
-        assert(Math.abs(sr6 - floating32_to_decimal(dut.output.bits.sr6.bits.peek().litValue.toLong)) <= ERROR)
+        // assert(Math.abs((sr6 - floating32_to_decimal(dut.output.bits.sr6.bits.peek().litValue.toLong))) <= ERROR)
+        assert(Math.abs((sr6 - floating32_to_decimal(dut.output.bits.sr6.bits.peek().litValue.toLong)) / sr6) <= ERROR)
         
         dut.clock.step(1)
         dut.output.ready.poke(true)
@@ -509,15 +535,15 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcSr6 module (invalid input)" in {
-    test(new CalcSr6(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcSr6(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr2 = (r.nextDouble() * r.nextInt(100)).toFloat
+        val sigma6 = get_float()
+        val epsilon = get_float()
+        val sr2 = get_float()
         
         dut.input.bits.error.poke(true)
         dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
@@ -541,17 +567,17 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcForce module" in {
-    test(new CalcForce(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr2 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr6 = (sr2 * sr2 * sr2 * sigma6.toFloat).toFloat
-        val force = (48.0F * sr6 * (sr6 - 0.5F) * sr2 * epsilon.toFloat).toFloat
+        val sigma6 = get_float()
+        val epsilon = get_float()
+        val sr2 = get_float()
+        val sr6 = (sr2 * sr2 * sr2 * sigma6).toFloat
+        val force = (48.0F * sr6 * (sr6 - 0.5F) * sr2 * epsilon).toFloat
         
         dut.input.bits.error.poke(false)
         dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
@@ -568,7 +594,8 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
         dut.output.valid.expect(true)
         dut.output.bits.error.expect(false)
 
-        assert(Math.abs(force - floating32_to_decimal(dut.output.bits.force.bits.peek().litValue.toLong)) <= ERROR)
+        // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.force.bits.peek().litValue.toLong))) <= ERROR)
+        assert(Math.abs((force - floating32_to_decimal(dut.output.bits.force.bits.peek().litValue.toLong)) / force) <= ERROR)
         
         dut.clock.step(1)
         dut.output.ready.poke(true)
@@ -577,16 +604,16 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalcForce module (invalid input)" in {
-    test(new CalcForce(dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
-        val sigma6 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val epsilon = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr2 = (r.nextDouble() * r.nextInt(100)).toFloat
-        val sr6 = (sr2 * sr2 * sr2 * sigma6.toFloat).toFloat
+        val sigma6 = get_float()
+        val epsilon = get_float()
+        val sr2 = get_float()
+        val sr6 = (sr2 * sr2 * sr2 * sigma6).toFloat
         
         dut.input.bits.error.poke(true)
         dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
@@ -610,33 +637,33 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalculateForce module" in {
-    test(new CalculateForce(dim=4, dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
         }
 
         val m1id = 1
-        val m1x = r.nextDouble() * r.nextInt(100)
-        val m1y = r.nextDouble() * r.nextInt(100)
-        val m1z = r.nextDouble() * r.nextInt(100)
+        val m1x = get_double()
+        val m1y = get_double()
+        val m1z = get_double()
 
         val m2id = 2
-        val m2x = r.nextDouble() * r.nextInt(100)
-        val m2y = r.nextDouble() * r.nextInt(100)
-        val m2z = r.nextDouble() * r.nextInt(100)
+        val m2x = get_double()
+        val m2y = get_double()
+        val m2z = get_double()
 
-        val sigma6 = r.nextDouble() * r.nextInt(100)
-        val epsilon = r.nextDouble() * r.nextInt(100)
+        val sigma6 = get_double()
+        val epsilon = get_double()
 
         val force = calc(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon)
 
         dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6.toFloat))
+        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
         dut.sigma6WriteIO.validIn.poke(true)
 
         dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon.toFloat))
+        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
         dut.epsilonWriteIO.validIn.poke(true)
 
         dut.clock.step(1)
@@ -666,8 +693,8 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
 
         dut.output.valid.expect(true)
         dut.output.bits.error.expect(false)
-
-        assert(Math.abs(force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) <= ERROR)
+        // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong))) <= ERROR)
+        assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) / force) <= ERROR)
         
         dut.clock.step(1)
         dut.output.ready.poke(true)
@@ -676,7 +703,7 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing CalculateForce module (invalid input)" in {
-    test(new CalculateForce(dim=4, dataWidth=8, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
       for(i <- 0 until 3) {
         while(!dut.input.ready.peek().litToBoolean) {
           dut.clock.step(1) 
@@ -684,19 +711,19 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
 
         val m1id = 1
         val m2id = 2
-        val m1x = r.nextDouble() * r.nextInt(100)
-        val m1y = r.nextDouble() * r.nextInt(100)
-        val m1z = r.nextDouble() * r.nextInt(100)
+        val m1x = get_float()
+        val m1y = get_float()
+        val m1z = get_float()
 
-        val sigma6 = r.nextDouble() * r.nextInt(100)
-        val epsilon = r.nextDouble() * r.nextInt(100)
+        val sigma6 = get_float()
+        val epsilon = get_float()
 
         dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6.toFloat))
+        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
         dut.sigma6WriteIO.validIn.poke(true)
 
         dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon.toFloat))
+        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
         dut.epsilonWriteIO.validIn.poke(true)
 
         dut.clock.step(1)

@@ -5,23 +5,23 @@ import chisel3.util._
 import hardfloat._
 import potential.Arithmetic.FloatArithmetic._
 
-case class MoleculeBundle(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Bundle {
-    val id = UInt(dataWidth.W)
+case class MoleculeBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+    val id = UInt(log2Up(dim).W)
     val x = Float(expWidth, sigWidth)
     val y = Float(expWidth, sigWidth)
     val z = Float(expWidth, sigWidth)
 }
 
-class Initialize(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
+class Initialize(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
-        val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-        val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
+        val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
+        val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
     })))
 
     val output = IO(Decoupled(new Bundle {
         val error = Bool()
-        val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-        val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
+        val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
+        val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
     }))
 
     input.ready := output.ready || !output.valid 
@@ -34,11 +34,11 @@ class Initialize(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     output.bits.molecule2 := input.bits.molecule2
 }
 
-class CalcRsq(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcRsq(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
         val error = Bool()
-        val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-        val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
+        val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
+        val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
         val sigma6 = Float(expWidth, sigWidth)
         val epsilon = Float(expWidth, sigWidth)
     })))
@@ -61,7 +61,7 @@ class CalcRsq(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     output.bits.rsq := delx * delx + dely * dely + delz * delz
 }
 
-class CalcSr2(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcSr2(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
         val error = Bool()
         val sigma6 = Float(expWidth, sigWidth)
@@ -91,7 +91,7 @@ class CalcSr2(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     input.ready := divider.ready && (output.ready || !output.valid)
 }
 
-class CalcSr6(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcSr6(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
         val error = Bool()
         val sigma6 = Float(expWidth, sigWidth)
@@ -114,7 +114,7 @@ class CalcSr6(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     output.bits.sr6 := input.bits.sr2 * input.bits.sr2 * input.bits.sr2 * input.bits.sigma6
 }
 
-class CalcForce(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcForce(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new Bundle {
         val error = Bool()
         val epsilon = Float(expWidth, sigWidth)
@@ -143,9 +143,9 @@ class CalcForce(dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
     output.bits.force := fortyEight * input.bits.sr6 * (input.bits.sr6 - half) * input.bits.sr2 * input.bits.epsilon
 }
 
-case class CFInputBundle(dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Bundle {
-    val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-    val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
+case class CFInputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+    val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
+    val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
 }
 
 case class CFOutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
@@ -153,23 +153,23 @@ case class CFOutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle
     val data = Float(expWidth, sigWidth)
 }
 
-class CalculateForce(val dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module { 
-    val input = IO(Flipped(Decoupled(new CFInputBundle(dim, dataWidth, expWidth, sigWidth))))
+class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module { 
+    val input = IO(Flipped(Decoupled(new CFInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CFOutputBundle(dim, expWidth, sigWidth)))
 
-    val sigma6Table = Module(new LUT(dim * dim, dataWidth, expWidth, sigWidth))
-    val sigma6WriteIO = IO(new LUTWriteIO(dim * dim, dataWidth, expWidth, sigWidth))
+    val sigma6Table = Module(new LUT(dim * dim, expWidth, sigWidth))
+    val sigma6WriteIO = IO(new LUTWriteIO(dim * dim, expWidth, sigWidth))
     sigma6Table.writeIO <> sigma6WriteIO
 
-    val epsilonTable = Module(new LUT(dim * dim, dataWidth, expWidth, sigWidth))
-    val epsilonWriteIO = IO(new LUTWriteIO(dim * dim, dataWidth, expWidth, sigWidth))
+    val epsilonTable = Module(new LUT(dim * dim, expWidth, sigWidth))
+    val epsilonWriteIO = IO(new LUTWriteIO(dim * dim, expWidth, sigWidth))
     epsilonTable.writeIO <> epsilonWriteIO
 
-    val initialize = Module(new Initialize(dataWidth, expWidth, sigWidth))
-    val calcRsq = Module(new CalcRsq(dataWidth, expWidth, sigWidth))
-    val calcSr2 = Module(new CalcSr2(dataWidth, expWidth, sigWidth))
-    val calcSr6 = Module(new CalcSr6(dataWidth, expWidth, sigWidth))
-    val calcForce = Module(new CalcForce(dataWidth, expWidth, sigWidth))
+    val initialize = Module(new Initialize(dim, expWidth, sigWidth))
+    val calcRsq = Module(new CalcRsq(dim, expWidth, sigWidth))
+    val calcSr2 = Module(new CalcSr2(dim, expWidth, sigWidth))
+    val calcSr6 = Module(new CalcSr6(dim, expWidth, sigWidth))
+    val calcForce = Module(new CalcForce(dim, expWidth, sigWidth))
 
     // both initialize and the LUT should complete in one clock cycle
     initialize.input.valid := input.valid
@@ -177,8 +177,8 @@ class CalculateForce(val dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int)
     initialize.input.bits.molecule2 := input.bits.molecule2
     initialize.output.ready := calcRsq.input.ready
 
-    sigma6Table.readIO.addr := input.bits.molecule1.id << log2Up(dim).U + input.bits.molecule2.id
-    epsilonTable.readIO.addr := input.bits.molecule1.id << log2Up(dim).U + input.bits.molecule2.id
+    sigma6Table.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
+    epsilonTable.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
 
     calcRsq.input.valid := initialize.output.valid
     calcRsq.input.bits.error := initialize.output.bits.error
