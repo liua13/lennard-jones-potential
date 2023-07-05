@@ -1,40 +1,47 @@
-// package potential
+package potential
 
-// import chisel3._
-// import chisel3.util._
-// import hardfloat._
-// import potential.Arithmetic.FloatArithmetic._
+import chisel3._
+import chisel3.util._
+import hardfloat._
+import potential.Arithmetic.FloatArithmetic._
 
-// case class CBInputBundle(dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Bundle {
-//     val molecule1 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-//     val molecule2 = new MoleculeBundle(dataWidth, expWidth, sigWidth)
-// }
-
-// case class CBOutputBundle(dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Bundle {
-//     val data = Float(expWidth, sigWidth)
-//     val error = Bool()
-// }
-
-// class CalculateBuffer(dim: Int, dataWidth: Int, expWidth: Int, sigWidth: Int) extends Module {
-//     val input = IO(Flipped(Decoupled(new CBInputBundle(dim, dataWidth, expWidth, sigWidth))))
-//     val output = IO(Decoupled(new CBOutputBundle(dim, dataWidth, expWidth, sigWidth)))
+class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
+    val input = IO(Flipped(Decoupled(new CFInputBundle(dim, expWidth, sigWidth))))
+    val output = IO(Decoupled(new CFOutputBundle(dim, expWidth, sigWidth)))
     
-//     val calculateForce = Module(new CalculateForce(dim, dataWidth, expWidth, sigWidth))
+    val calculateForce = Module(new CalculateForce(dim, expWidth, sigWidth))
+    calculateForce.output.ready := output.ready
 
-//     val q = Queue(input)
-//     q.nodeq() 
+    val sigma6WriteIO = IO(new LUTWriteIO(dim * dim, expWidth, sigWidth))
+    calculateForce.sigma6WriteIO <> sigma6WriteIO
 
-//     when(q.valid && calculateForce.input.ready) {
-//         val qVal = q.deq()
-//         calculateForce.input.bits.molecule1 := qVal.molecule1
-//         calculateForce.input.bits.molecule2 := qVal.molecule2
-//         calculateForce.input.valid := true.B
-//     }.otherwise {
-//         calculateForce.input.bits.molecule1 := calculateForce.input.bits.molecule1
-//         calculateForce.input.bits.molecule2 := calculateForce.input.bits.molecule2
-//         calculateForce.input.valid := false.B
-//     }
-// }
+    val epsilonWriteIO = IO(new LUTWriteIO(dim * dim, expWidth, sigWidth))
+    calculateForce.epsilonWriteIO <> epsilonWriteIO
 
-// // todo: change tests in CalculateForce to compare bits instead of error range OR using relative range: (x - y) / max(x, y)
-// // todo: write tests for this module 
+    val m1 = Reg(new MoleculeBundle(dim, expWidth, sigWidth))
+    val m2 = Reg(new MoleculeBundle(dim, expWidth, sigWidth))
+
+    val q = Queue(input)
+    q.nodeq() 
+
+    when(q.valid && calculateForce.input.ready) {
+        val qVal = q.deq()
+        calculateForce.input.bits.molecule1 := qVal.molecule1
+        calculateForce.input.bits.molecule2 := qVal.molecule2
+        calculateForce.input.valid := true.B
+        q.ready := true.B
+
+        m1 := qVal.molecule1
+        m2 := qVal.molecule2
+    }.otherwise {
+        calculateForce.input.bits.molecule1 := m1
+        calculateForce.input.bits.molecule2 := m2
+        calculateForce.input.valid := false.B
+        q.ready := false.B
+    }
+
+    // output.valid := calculateForce.output.valid
+    // output.bits.data := calculateForce.output.bits.data
+    // output.bits.error := calculateForce.output.bits.error
+    output.enq(calculateForce.output.bits)
+}

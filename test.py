@@ -9,7 +9,7 @@ def potential(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon):
     return rsq, sr2, sr6, force
 
 if __name__ == "__main__":
-    rsq, sr2, sr6, force = potential(7.5895433,12.694938,3.5018194,3.935307,22.743324,1.8460276,51.527622,44.758675)
+    rsq, sr2, sr6, force = potential(1,1,1,2,2,2,3,3)
     print("rsq: ", rsq)
     print("sr2: ", sr2)
     print("sr6: ", sr6)
