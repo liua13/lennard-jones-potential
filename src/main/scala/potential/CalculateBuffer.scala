@@ -24,12 +24,13 @@ class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int) extends Module
     val q = Queue(input)
     q.nodeq() 
 
+    calculateForce.input.valid := false.B
+
     when(q.valid && calculateForce.input.ready) {
         val qVal = q.deq()
         calculateForce.input.bits.molecule1 := qVal.molecule1
         calculateForce.input.bits.molecule2 := qVal.molecule2
         calculateForce.input.valid := true.B
-        q.ready := true.B
 
         m1 := qVal.molecule1
         m2 := qVal.molecule2
@@ -37,11 +38,9 @@ class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int) extends Module
         calculateForce.input.bits.molecule1 := m1
         calculateForce.input.bits.molecule2 := m2
         calculateForce.input.valid := false.B
-        q.ready := false.B
     }
 
-    // output.valid := calculateForce.output.valid
-    // output.bits.data := calculateForce.output.bits.data
-    // output.bits.error := calculateForce.output.bits.error
-    output.enq(calculateForce.output.bits)
+    output.valid := calculateForce.output.valid
+    output.bits.data := calculateForce.output.bits.data
+    output.bits.error := calculateForce.output.bits.error
 }

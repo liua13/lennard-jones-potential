@@ -27,7 +27,7 @@ class Initialize(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new InitializeInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new InitializeOutputBundle(dim, expWidth, sigWidth)))
 
-    input.ready := output.ready || !output.valid 
+    input.ready := output.ready
     output.valid := input.valid
     output.bits.error := input.valid && 
         input.bits.molecule1.x === input.bits.molecule2.x &&
@@ -56,7 +56,7 @@ class CalcRsq(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CalcRsqInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CalcRsqOutputBundle(dim, expWidth, sigWidth)))
 
-    input.ready := output.ready || !output.valid 
+    input.ready := output.ready
     val delx = input.bits.molecule2.x - input.bits.molecule1.x
     val dely = input.bits.molecule2.y - input.bits.molecule1.y
     val delz = input.bits.molecule2.z - input.bits.molecule1.z
@@ -92,7 +92,7 @@ class CalcSr2(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
 
     val sigma6Reg = Reg(Float(expWidth, sigWidth))
     val epsilonReg = Reg(Float(expWidth, sigWidth))
-    when(input.ready && input.valid && !input.bits.error && (output.ready || !output.valid)) {
+    when(input.ready && input.valid && !input.bits.error && (output.ready)) {
         sigma6Reg := input.bits.sigma6
         epsilonReg := input.bits.epsilon
     }.otherwise {
@@ -100,14 +100,14 @@ class CalcSr2(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
         epsilonReg := epsilonReg
     }
     
-    val dividerValidIn = input.ready && input.valid && !input.bits.error && (output.ready || !output.valid)
+    val dividerValidIn = input.ready && input.valid && !input.bits.error && (output.ready)
     val divider = (one./(input.bits.rsq, dividerValidIn)).get
     output.valid := (input.valid && input.bits.error) || divider.valid
     output.bits.error := input.bits.error
     output.bits.sigma6 := sigma6Reg
     output.bits.epsilon := epsilonReg
     output.bits.sr2 := divider.bits
-    input.ready := divider.ready && (output.ready || !output.valid)
+    input.ready := divider.ready && (output.ready)
 }
 
 case class CalcSr6InputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
@@ -128,7 +128,7 @@ class CalcSr6(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CalcSr6InputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CalcSr6OutputBundle(dim, expWidth, sigWidth)))
 
-    input.ready := output.ready || !output.valid
+    input.ready := output.ready
     output.valid := input.valid
     output.bits.error := input.bits.error
     output.bits.epsilon := input.bits.epsilon
@@ -162,7 +162,7 @@ class CalcForce(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     else if(expWidth == 11 && sigWidth == 53) 4631952216750555136L.U
     else fortyEight.bits := Cat((1 << (expWidth - 4)).U((expWidth - 2).W), (1 << 1).U(2.W), (1 << (sigWidth - 2)).U(sigWidth.W))
 
-    input.ready := output.ready || !output.valid 
+    input.ready := output.ready
     output.valid := input.valid 
     output.bits.error := input.bits.error
     output.bits.force := fortyEight * input.bits.sr6 * (input.bits.sr6 - half) * input.bits.sr2 * input.bits.epsilon
@@ -216,24 +216,15 @@ class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module 
     })
 
     // both initialize and the LUT should complete in one clock cycle
-    initialize.input.valid := input.valid
+    initialize.input.valid := input.valid && initialize.input.ready
     initialize.input.bits.molecule1 := input.bits.molecule1
     initialize.input.bits.molecule2 := input.bits.molecule2
-    initialize.output.ready := RegNext(calcRsq.input.ready)
+    initialize.output.ready := !initializeOutputReg.valid // RegNext(calcRsq.input.ready)
 
     sigma6Table.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
     epsilonTable.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
 
-    // reg valid + output valid -> not possible
-    // reg invalid + output valid -> update reg 
-    // reg valid + output invalid -> keep reg
-    // reg invalid + output invalid -> whatever 
-
-    // reg valid + input ready -> update reg
-    // reg invalid + input ready -> update reg
-    // reg valid + input not ready -> keep reg
-    // reg invalid + input not ready -> whatever
-    when(initializeOutputReg.valid && !calcRsq.input.ready) { // reg valid + output invalid
+    when(initializeOutputReg.valid && !calcRsq.input.ready) {
         initializeOutputReg := initializeOutputReg
     }.otherwise {
         initializeOutputReg.valid := initialize.output.valid
@@ -242,13 +233,13 @@ class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module 
         initializeOutputReg.epsilon := epsilonTable.readIO.data
     }
 
-    calcRsq.input.valid := initializeOutputReg.valid
+    calcRsq.input.valid := initializeOutputReg.valid && calcRsq.input.ready
     calcRsq.input.bits.error := initializeOutputReg.bits.error
     calcRsq.input.bits.molecule1 := initializeOutputReg.bits.molecule1
     calcRsq.input.bits.molecule2 := initializeOutputReg.bits.molecule2
     calcRsq.input.bits.sigma6 := initializeOutputReg.sigma6
     calcRsq.input.bits.epsilon := initializeOutputReg.epsilon
-    calcRsq.output.ready := RegNext(calcSr2.input.ready)
+    calcRsq.output.ready := !calcRsqOutputReg.valid
 
     when(calcRsqOutputReg.valid && !calcSr2.input.ready) { 
         calcRsqOutputReg := calcRsqOutputReg
@@ -257,12 +248,12 @@ class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module 
         calcRsqOutputReg.bits := calcRsq.output.bits
     }
 
-    calcSr2.input.valid := calcRsqOutputReg.valid
+    calcSr2.input.valid := calcRsqOutputReg.valid && calcSr2.input.ready
     calcSr2.input.bits.error := calcRsqOutputReg.bits.error
     calcSr2.input.bits.sigma6 := calcRsqOutputReg.bits.sigma6
     calcSr2.input.bits.epsilon := calcRsqOutputReg.bits.epsilon
     calcSr2.input.bits.rsq := calcRsqOutputReg.bits.rsq
-    calcSr2.output.ready := RegNext(calcSr6.input.ready)
+    calcSr2.output.ready := !calcSr2OutputReg.valid
 
     when(calcSr2OutputReg.valid && !calcSr6.input.ready) { 
         calcSr2OutputReg := calcSr2OutputReg
@@ -271,12 +262,12 @@ class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module 
         calcSr2OutputReg.bits := calcSr2.output.bits
     }
 
-    calcSr6.input.valid := calcSr2OutputReg.valid
+    calcSr6.input.valid := calcSr2OutputReg.valid && calcSr6.input.ready
     calcSr6.input.bits.error := calcSr2OutputReg.bits.error
     calcSr6.input.bits.sigma6 := calcSr2OutputReg.bits.sigma6
     calcSr6.input.bits.epsilon := calcSr2OutputReg.bits.epsilon
     calcSr6.input.bits.sr2 := calcSr2OutputReg.bits.sr2
-    calcSr6.output.ready := RegNext(calcForce.input.ready)
+    calcSr6.output.ready := !calcSr6OutputReg.valid
 
     when(calcSr6OutputReg.valid && !calcForce.input.ready) { 
         calcSr6OutputReg := calcSr6OutputReg
@@ -285,57 +276,15 @@ class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module 
         calcSr6OutputReg.bits := calcSr6.output.bits
     }
 
-    calcForce.input.valid := calcSr6OutputReg.valid
+    calcForce.input.valid := calcSr6OutputReg.valid && calcForce.input.ready
     calcForce.input.bits.error := calcSr6OutputReg.bits.error
     calcForce.input.bits.epsilon := calcSr6OutputReg.bits.epsilon
     calcForce.input.bits.sr2 := calcSr6OutputReg.bits.sr2
     calcForce.input.bits.sr6 := calcSr6OutputReg.bits.sr6
-    calcForce.output.ready := output.ready // RegNext(output.ready)
+    calcForce.output.ready := output.ready
     
     input.ready := initialize.input.ready
     output.valid := calcForce.output.valid
     output.bits.error := calcForce.output.bits.error
     output.bits.data := calcForce.output.bits.force
 }
-
-// initialize.input.valid := input.valid
-// initialize.input.bits.molecule1 := input.bits.molecule1
-// initialize.input.bits.molecule2 := input.bits.molecule2
-// initialize.output.ready := RegNext(calcRsq.input.ready)
-
-// sigma6Table.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
-// epsilonTable.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
-
-// calcRsq.input.valid := initialize.output.valid
-// calcRsq.input.bits.error := initialize.output.bits.error
-// calcRsq.input.bits.molecule1 := initialize.output.bits.molecule1
-// calcRsq.input.bits.molecule2 := initialize.output.bits.molecule2
-// calcRsq.input.bits.sigma6 := sigma6Table.readIO.data
-// calcRsq.input.bits.epsilon := epsilonTable.readIO.data
-// calcRsq.output.ready := RegNext(calcSr2.input.ready)
-
-// calcSr2.input.valid := calcRsq.output.valid
-// calcSr2.input.bits.error := calcRsq.output.bits.error
-// calcSr2.input.bits.sigma6 := calcRsq.output.bits.sigma6
-// calcSr2.input.bits.epsilon := calcRsq.output.bits.epsilon
-// calcSr2.input.bits.rsq := calcRsq.output.bits.rsq
-// calcSr2.output.ready := RegNext(calcSr6.input.ready)
-
-// calcSr6.input.valid := calcSr2.output.valid
-// calcSr6.input.bits.error := calcSr2.output.bits.error
-// calcSr6.input.bits.sigma6 := calcSr2.output.bits.sigma6
-// calcSr6.input.bits.epsilon := calcSr2.output.bits.epsilon
-// calcSr6.input.bits.sr2 := calcSr2.output.bits.sr2
-// calcSr6.output.ready := RegNext(calcForce.input.ready)
-
-// calcForce.input.valid := calcSr6.output.valid
-// calcForce.input.bits.error := calcSr6.output.bits.error
-// calcForce.input.bits.epsilon := calcSr6.output.bits.epsilon
-// calcForce.input.bits.sr2 := calcSr6.output.bits.sr2
-// calcForce.input.bits.sr6 := calcSr6.output.bits.sr6
-// calcForce.output.ready := RegNext(output.ready)
-
-// input.ready := initialize.input.ready
-// output.valid := calcForce.output.valid
-// output.bits.error := calcForce.output.bits.error
-// output.bits.data := calcForce.output.bits.force

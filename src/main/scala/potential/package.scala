@@ -138,6 +138,10 @@ package object potential {
   }
 
   def floating32_to_decimal(num: scala.Long): Double = {
+    if(num == 0) {
+      return 0
+    }
+    
     // floating 32 bit to binary
     var b = ""
     var n = num
