@@ -1,3 +1,4 @@
+
 package potential
 
 import chisel3._
@@ -12,12 +13,12 @@ case class MoleculeBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle
     val z = Float(expWidth, sigWidth)
 }
 
-case class InitializeInputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class InitializeInputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
     val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
 }
 
-case class InitializeOutputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class InitializeOutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
     val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
@@ -27,17 +28,29 @@ class Initialize(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new InitializeInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new InitializeOutputBundle(dim, expWidth, sigWidth)))
 
-    input.ready := output.ready
-    output.valid := input.valid
-    output.bits.error := input.valid && 
-        input.bits.molecule1.x === input.bits.molecule2.x &&
-        input.bits.molecule1.y === input.bits.molecule2.y &&
-        input.bits.molecule1.z === input.bits.molecule2.z
-    output.bits.molecule1 := input.bits.molecule1
-    output.bits.molecule2 := input.bits.molecule2
+    val outputReg = Reg(InitializeOutputBundle(dim, expWidth, sigWidth))
+    val outputRegValid = Reg(Bool())
+
+    input.ready := output.ready || !output.valid
+
+    when(output.ready || !output.valid) {
+        outputReg.error := input.valid && 
+            input.bits.molecule1.x === input.bits.molecule2.x &&
+            input.bits.molecule1.y === input.bits.molecule2.y &&
+            input.bits.molecule1.z === input.bits.molecule2.z
+        outputReg.molecule1 := input.bits.molecule1
+        outputReg.molecule2 := input.bits.molecule2
+        outputRegValid := input.valid 
+    }.otherwise {
+        outputReg := outputReg
+        outputRegValid := outputRegValid
+    }
+
+    output.bits := outputReg
+    output.valid := outputRegValid
 }
 
-case class CalcRsqInputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcRsqInputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val molecule1 = new MoleculeBundle(dim, expWidth, sigWidth)
     val molecule2 = new MoleculeBundle(dim, expWidth, sigWidth)
@@ -45,43 +58,55 @@ case class CalcRsqInputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extend
     val epsilon = Float(expWidth, sigWidth)
 }
 
-case class CalcRsqOutputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcRsqOutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val sigma6 = Float(expWidth, sigWidth)
     val epsilon = Float(expWidth, sigWidth)
     val rsq = Float(expWidth, sigWidth)
 }
 
-class CalcRsq(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcRsq(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CalcRsqInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CalcRsqOutputBundle(dim, expWidth, sigWidth)))
 
-    input.ready := output.ready
-    val delx = input.bits.molecule2.x - input.bits.molecule1.x
-    val dely = input.bits.molecule2.y - input.bits.molecule1.y
-    val delz = input.bits.molecule2.z - input.bits.molecule1.z
-    output.valid := input.valid
-    output.bits.error := input.bits.error
-    output.bits.sigma6 := input.bits.sigma6
-    output.bits.epsilon := input.bits.epsilon
-    output.bits.rsq := delx * delx + dely * dely + delz * delz
+    val outputReg = Reg(CalcRsqOutputBundle(dim, expWidth, sigWidth))
+    val outputRegValid = Reg(Bool())
+
+    input.ready := output.ready || !output.valid
+
+    when(output.ready || !output.valid) {
+        val delx = input.bits.molecule2.x - input.bits.molecule1.x
+        val dely = input.bits.molecule2.y - input.bits.molecule1.y
+        val delz = input.bits.molecule2.z - input.bits.molecule1.z
+        outputReg.error := input.bits.error
+        outputReg.sigma6 := input.bits.sigma6
+        outputReg.epsilon := input.bits.epsilon
+        outputReg.rsq := delx * delx + dely * dely + delz * delz
+        outputRegValid := input.valid
+    }.otherwise {
+        outputReg := outputReg
+        outputRegValid := outputRegValid
+    }
+
+    output.bits := outputReg
+    output.valid := outputRegValid
 }
 
-case class CalcSr2InputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcSr2InputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val sigma6 = Float(expWidth, sigWidth)
     val epsilon = Float(expWidth, sigWidth)
     val rsq = Float(expWidth, sigWidth)
 }
 
-case class CalcSr2OutputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcSr2OutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val sigma6 = Float(expWidth, sigWidth)
     val epsilon = Float(expWidth, sigWidth)
     val sr2 = Float(expWidth, sigWidth)
 }
 
-class CalcSr2(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcSr2(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CalcSr2InputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CalcSr2OutputBundle(dim, expWidth, sigWidth)))
 
@@ -90,65 +115,90 @@ class CalcSr2(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     else if(expWidth == 11 && sigWidth == 53) one.bits := 4607182418800017408L.U
     else one.bits := Cat(0.U(2.W), ((1 << (expWidth - 1)) - 1).U((expWidth - 1).W), 0.U((sigWidth - 1).W))
 
-    val sigma6Reg = Reg(Float(expWidth, sigWidth))
-    val epsilonReg = Reg(Float(expWidth, sigWidth))
-    when(input.ready && input.valid && !input.bits.error && (output.ready)) {
-        sigma6Reg := input.bits.sigma6
-        epsilonReg := input.bits.epsilon
-    }.otherwise {
-        sigma6Reg := sigma6Reg
-        epsilonReg := epsilonReg
-    }
-    
-    val dividerValidIn = input.ready && input.valid && !input.bits.error && (output.ready)
+    val outputReg = Reg(CalcSr2OutputBundle(dim, expWidth, sigWidth))
+    val outputRegValid = Reg(Bool())
+
+    val dividerValidIn = input.valid && (output.ready || !output.valid) && !input.bits.error 
     val divider = (one./(input.bits.rsq, dividerValidIn)).get
-    output.valid := (input.valid && input.bits.error) || divider.valid
-    output.bits.error := input.bits.error
-    output.bits.sigma6 := sigma6Reg
-    output.bits.epsilon := epsilonReg
-    output.bits.sr2 := divider.bits
-    input.ready := divider.ready && (output.ready)
+
+    // outputRegValid := divider.valid || (input.valid && input.bits.error)
+    // outputReg.error := input.bits.error
+    // outputReg.sigma6 := input.bits.sigma6
+    // outputReg.epsilon := input.bits.epsilon
+    // outputReg.sr2 := divider.bits
+    // input.ready := divider.ready && (output.ready || !output.valid)
+
+    // output.bits := outputReg
+    // output.valid := outputRegValid
+
+    input.ready := divider.ready && (output.ready || !output.valid)
+
+    when(output.ready || !output.valid) { // todo: !outputReg.sr2??
+        outputReg.error := input.bits.error
+        outputReg.sigma6 := input.bits.sigma6
+        outputReg.epsilon := input.bits.epsilon
+        outputReg.sr2 := divider.bits
+        outputRegValid := (input.valid && input.bits.error) || divider.valid
+    }.otherwise {
+        outputReg := outputReg
+        outputRegValid := outputRegValid
+    }
+
+    output.bits := outputReg
+    output.valid := outputRegValid
 }
 
-case class CalcSr6InputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcSr6InputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val sigma6 = Float(expWidth, sigWidth)
     val epsilon = Float(expWidth, sigWidth)
     val sr2 = Float(expWidth, sigWidth)
 }
 
-case class CalcSr6OutputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcSr6OutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val epsilon = Float(expWidth, sigWidth)
     val sr2 = Float(expWidth, sigWidth)
     val sr6 = Float(expWidth, sigWidth)
 }
 
-class CalcSr6(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcSr6(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CalcSr6InputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CalcSr6OutputBundle(dim, expWidth, sigWidth)))
 
-    input.ready := output.ready
-    output.valid := input.valid
-    output.bits.error := input.bits.error
-    output.bits.epsilon := input.bits.epsilon
-    output.bits.sr2 := input.bits.sr2
-    output.bits.sr6 := input.bits.sr2 * input.bits.sr2 * input.bits.sr2 * input.bits.sigma6
+    val outputReg = Reg(CalcSr6OutputBundle(dim, expWidth, sigWidth))
+    val outputRegValid = Reg(Bool())
+    
+    input.ready := output.ready || !output.valid 
+
+    when(output.ready || !output.valid) {
+        outputReg.error := input.bits.error
+        outputReg.epsilon := input.bits.epsilon
+        outputReg.sr2 := input.bits.sr2
+        outputReg.sr6 := input.bits.sr2 * input.bits.sr2 * input.bits.sr2 * input.bits.sigma6
+        outputRegValid := input.valid
+    }.otherwise {
+        outputReg := outputReg
+        outputRegValid := outputRegValid
+    }
+
+    output.bits := outputReg
+    output.valid := outputRegValid
 }
 
-case class CalcForceInputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcForceInputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val epsilon = Float(expWidth, sigWidth)
     val sr2 = Float(expWidth, sigWidth)
     val sr6 = Float(expWidth, sigWidth)
 }
 
-case class CalcForceOutputBundle(val dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
+case class CalcForceOutputBundle(dim: Int, expWidth: Int, sigWidth: Int) extends Bundle {
     val error = Bool()
     val force = Float(expWidth, sigWidth)
 }
 
-class CalcForce(dim: Int, expWidth: Int, sigWidth: Int) extends Module {
+class CalcForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CalcForceInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CalcForceOutputBundle(dim, expWidth, sigWidth)))
 

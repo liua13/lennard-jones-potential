@@ -45,14 +45,12 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "Testing Initialize module" in {
-    test(new Initialize(dim=4, expWidth=8, sigWidth=24)) { dut =>
+    test(new Initialize(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       dut.output.ready.poke(true)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
+      var arr = new Array[MoleculeInfo](dut.dim)
 
+      for(i <- 0 until dut.dim) {
         val m1x = get_float()
         val m1y = get_float()
         val m1z = get_float()
@@ -61,86 +59,48 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
         val m2y = get_float()
         val m2z = get_float()
 
-        dut.input.bits.molecule1.id.poke(1)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
-
-        dut.input.bits.molecule2.id.poke(2)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m2x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m2y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m2z))
-        dut.input.valid.poke(true)
-
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        if(i == dut.dim / 2) {
+            arr(i) = MoleculeInfo(1, m1x, m1y, m1z, 2, m1x, m1y, m1z, 0F, 0F, 0F, 0F, 0F, 0F)
+        } else {
+            arr(i) = MoleculeInfo(1, m1x, m1y, m1z, 2, m2x, m2y, m2z, 0F, 0F, 0F, 0F, 0F, 0F)
         }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-
-        dut.output.bits.molecule1.x.bits.expect(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.expect(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.expect(decimal_to_floating32(m1z))
-
-        dut.input.bits.molecule2.x.bits.expect(decimal_to_floating32(m2x))
-        dut.input.bits.molecule2.y.bits.expect(decimal_to_floating32(m2y))
-        dut.input.bits.molecule2.z.bits.expect(decimal_to_floating32(m2z))
-      
-        dut.clock.step(1)
       }
-    }
-  }
 
-  "Testing Initialize module (invalid input)" in {
-    test(new Initialize(dim=4, expWidth=8, sigWidth=24)) { dut =>
-      dut.output.ready.poke(true)
+      for(i <- 0 until dut.dim) {
+        val entry = arr(i)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
-        val m1x = get_float()
-        val m1y = get_float()
-        val m1z = get_float()
-        
         dut.input.bits.molecule1.id.poke(1)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
+        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(entry.m1x))
+        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(entry.m1y))
+        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(entry.m1z))
 
         dut.input.bits.molecule2.id.poke(2)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m1z))
+        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(entry.m2x))
+        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(entry.m2y))
+        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(entry.m2z))
         dut.input.valid.poke(true)
 
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        while(!dut.input.ready.peek().litToBoolean) {
+            dut.clock.step(1) 
         }
 
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(true)
-
         dut.clock.step(1)
+
+        dut.output.valid.expect(true)
+        dut.output.bits.error.expect(i == dut.dim / 2)
+
+        // dut.clock.step(1)
       }
     }
   }
 
   "Testing CalcRsq module" in {
-    test(new CalcRsq(dim=4, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcRsq(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       dut.output.ready.poke(true)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
+      var arr = new Array[MoleculeInfo](dut.dim)
 
+      for(i <- 0 until dut.dim) {
         val m1x = get_float()
         val m1y = get_float()
         val m1z = get_float()
@@ -156,511 +116,480 @@ class CalculateForceSpec extends AnyFreeSpec with ChiselScalatestTester {
 
         val sigma6 = get_float()
         val epsilon = get_float()
-        
-        dut.input.bits.error.poke(false)
-        dut.input.bits.molecule1.id.poke(1)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
 
-        dut.input.bits.molecule2.id.poke(2)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m2x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m2y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m2z))
-        
-        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.valid.poke(true)
-
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        if(i == dut.dim / 2) {
+            arr(i) = MoleculeInfo(1, m1x, m1y, m1z, 2, m1x, m1y, m1z, sigma6, epsilon, 0F, 0F, 0F, 0F)
+        } else {
+            arr(i) = MoleculeInfo(1, m1x, m1y, m1z, 2, m2x, m2y, m2z, sigma6, epsilon, rsq, 0F, 0F, 0F)
         }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-        dut.input.bits.sigma6.bits.expect(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.expect(decimal_to_floating32(epsilon))
-        // assert(Math.abs((rsq - floating32_to_decimal(dut.output.bits.rsq.bits.peek().litValue.toLong))) <= ERROR)
-        assert(Math.abs((rsq - floating32_to_decimal(dut.output.bits.rsq.bits.peek().litValue.toLong)) / rsq) <= ERROR)
-
-        dut.clock.step(1)
       }
-    }
-  }
 
-  "Testing CalcRsq module (invalid input)" in {
-    test(new CalcRsq(dim=4, expWidth=8, sigWidth=24)) { dut =>
-      dut.output.ready.poke(true)
+      for(i <- 0 until dut.dim) {
+        val entry = arr(i)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
-        val m1x = get_float()
-        val m1y = get_float()
-        val m1z = get_float()
-
-        val sigma6 = get_float()
-        val epsilon = get_float()
-        
-        dut.input.bits.error.poke(true)
         dut.input.bits.molecule1.id.poke(1)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
+        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(entry.m1x))
+        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(entry.m1y))
+        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(entry.m1z))
 
         dut.input.bits.molecule2.id.poke(2)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m1z))
-        
-        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
+        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(entry.m2x))
+        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(entry.m2y))
+        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(entry.m2z))
+
+        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(entry.sigma6))
+        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(entry.epsilon))
+        dut.input.bits.error.poke(i == dut.dim / 2)
         dut.input.valid.poke(true)
 
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        while(!dut.input.ready.peek().litToBoolean) {
+            dut.clock.step(1) 
         }
 
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(true)
-
         dut.clock.step(1)
+
+        dut.output.valid.expect(true)
+        dut.output.bits.error.expect(i == dut.dim / 2)
+
+        dut.output.bits.sigma6.bits.expect(decimal_to_floating32(entry.sigma6))
+        dut.output.bits.epsilon.bits.expect(decimal_to_floating32(entry.epsilon))
+
+        if(i != dut.dim / 2) {
+            assert(Math.abs((entry.rsq - floating32_to_decimal(dut.output.bits.rsq.bits.peek().litValue.toLong)) / entry.rsq) <= ERROR)
+        }
       }
     }
   }
 
   "Testing CalcSr2 module" in {
-    test(new CalcSr2(dim=4, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcSr2(dim=8, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       dut.output.ready.poke(true)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
+      var arr = new Array[MoleculeInfo](dut.dim)
 
+      for(i <- 0 until dut.dim) {
         val sigma6 = get_float()
         val epsilon = get_float()
         val rsq = get_float()
         val sr2 = (1.0 / rsq).toFloat
-        
-        dut.input.bits.error.poke(false)
-        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.bits.rsq.bits.poke(decimal_to_floating32(rsq))
+
+        if(i == dut.dim / 2) {
+            arr(i) = MoleculeInfo(1, 0F, 0F, 0F, 2, 0F, 0F, 0F, sigma6, epsilon, 0F, 0F, 0F, 0F)
+        } else {
+            arr(i) = MoleculeInfo(1, 0F, 0F, 0F, 2, 0F, 0F, 0F, sigma6, epsilon, rsq, sr2, 0F, 0F)
+        }
+      }
+
+      for(i <- 0 until dut.dim) {
+        val entry = arr(i)
+
+        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(entry.sigma6))
+        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(entry.epsilon))
+        dut.input.bits.rsq.bits.poke(decimal_to_floating32(entry.rsq))
+
+        dut.input.bits.error.poke(i == dut.dim / 2)
         dut.input.valid.poke(true)
 
+        while(!dut.input.ready.peek().litToBoolean) {
+            dut.clock.step(1)
+        }
+
+        dut.clock.step(1)
+        dut.input.valid.poke(false)
+
         while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+            dut.clock.step(1) 
         }
 
         dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-        dut.output.bits.sigma6.bits.expect(decimal_to_floating32(sigma6))
-        dut.output.bits.epsilon.bits.expect(decimal_to_floating32(epsilon))
-        // assert(Math.abs((sr2 - floating32_to_decimal(dut.output.bits.sr2.bits.peek().litValue.toLong))) <= ERROR)
-        assert(Math.abs((sr2 - floating32_to_decimal(dut.output.bits.sr2.bits.peek().litValue.toLong)) / sr2) <= ERROR)
-        
-        dut.clock.step(1)
+        dut.output.bits.error.expect(i == dut.dim / 2)
+
+        dut.input.bits.sigma6.bits.expect(decimal_to_floating32(entry.sigma6))
+        dut.input.bits.epsilon.bits.expect(decimal_to_floating32(entry.epsilon))
+
+        if(i != dut.dim / 2) {
+            assert(Math.abs((entry.sr2 - floating32_to_decimal(dut.output.bits.sr2.bits.peek().litValue.toLong)) / entry.sr2) <= ERROR)
+        }
       }
     }
   }
 
-  "Testing CalcSr2 module (invalid input)" in {
-    test(new CalcSr2(dim=4, expWidth=8, sigWidth=24)) { dut =>
+"Testing CalcSr6 module" in {
+    test(new CalcSr6(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       dut.output.ready.poke(true)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
+      var arr = new Array[MoleculeInfo](dut.dim)
 
-        val sigma6 = get_float()
-        val epsilon = get_float()
-        val rsq = get_float()
-        
-        dut.input.bits.error.poke(true)
-        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.bits.rsq.bits.poke(decimal_to_floating32(rsq))
-        dut.input.valid.poke(true)
-
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
-        }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(true)
-
-        dut.clock.step(1)
-      }
-    }
-  }
-
-  "Testing CalcSr6 module" in {
-    test(new CalcSr6(dim=4, expWidth=8, sigWidth=24)) { dut =>
-      dut.output.ready.poke(true)
-
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
+      for(i <- 0 until dut.dim) {
         val sigma6 = get_float()
         val epsilon = get_float()
         val sr2 = get_float()
         val sr6 = (sr2 * sr2 * sr2 * sigma6).toFloat
-        
-        dut.input.bits.error.poke(false)
-        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.bits.sr2.bits.poke(decimal_to_floating32(sr2))
-        dut.input.valid.poke(true)
 
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        if(i == dut.dim / 2) {
+            arr(i) = MoleculeInfo(1, 0F, 0F, 0F, 2, 0F, 0F, 0F, sigma6, epsilon, 0F, sr2, 0F, 0F)
+        } else {
+            arr(i) = MoleculeInfo(1, 0F, 0F, 0F, 2, 0F, 0F, 0F, sigma6, epsilon, 0F, sr2, sr6, 0F)
         }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-        dut.output.bits.epsilon.bits.expect(decimal_to_floating32(epsilon))
-        dut.output.bits.sr2.bits.expect(decimal_to_floating32(sr2))
-        // assert(Math.abs((sr6 - floating32_to_decimal(dut.output.bits.sr6.bits.peek().litValue.toLong))) <= ERROR)
-        assert(Math.abs((sr6 - floating32_to_decimal(dut.output.bits.sr6.bits.peek().litValue.toLong)) / sr6) <= ERROR)
-        
-        dut.clock.step(1)
       }
-    }
-  }
 
-  "Testing CalcSr6 module (invalid input)" in {
-    test(new CalcSr6(dim=4, expWidth=8, sigWidth=24)) { dut =>
-      dut.output.ready.poke(true)
+      for(i <- 0 until dut.dim) {
+        val entry = arr(i)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
-        val sigma6 = get_float()
-        val epsilon = get_float()
-        val sr2 = get_float()
-        
-        dut.input.bits.error.poke(true)
-        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(sigma6))
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.bits.sr2.bits.poke(decimal_to_floating32(sr2))
+        dut.input.bits.sigma6.bits.poke(decimal_to_floating32(entry.sigma6))
+        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(entry.epsilon))
+        dut.input.bits.sr2.bits.poke(decimal_to_floating32(entry.sr2))
+        dut.input.bits.error.poke(i == dut.dim / 2)
         dut.input.valid.poke(true)
 
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        while(!dut.input.ready.peek().litToBoolean) {
+            dut.clock.step(1) 
         }
 
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(true)
-        
         dut.clock.step(1)
+
+        dut.output.valid.expect(true)
+        dut.output.bits.error.expect(i == dut.dim / 2)
+
+        dut.output.bits.epsilon.bits.expect(decimal_to_floating32(entry.epsilon))
+        dut.output.bits.sr2.bits.expect(decimal_to_floating32(entry.sr2))
+
+        if(i != dut.dim / 2) {
+            assert(Math.abs((entry.sr6 - floating32_to_decimal(dut.output.bits.sr6.bits.peek().litValue.toLong)) / entry.sr6) <= ERROR)
+        }
       }
     }
   }
 
   "Testing CalcForce module" in {
-    test(new CalcForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
+    test(new CalcForce(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
       dut.output.ready.poke(true)
 
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
+      var arr = new Array[MoleculeInfo](dut.dim)
 
+      for(i <- 0 until dut.dim) {
         val sigma6 = get_float()
         val epsilon = get_float()
         val sr2 = get_float()
         val sr6 = (sr2 * sr2 * sr2 * sigma6).toFloat
         val force = (48.0F * sr6 * (sr6 - 0.5F) * sr2 * epsilon).toFloat
-        
-        dut.input.bits.error.poke(false)
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.bits.sr2.bits.poke(decimal_to_floating32(sr2))
-        dut.input.bits.sr6.bits.poke(decimal_to_floating32(sr6))
-        dut.input.valid.poke(true)
 
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
+        if(i == dut.dim / 2) {
+            arr(i) = MoleculeInfo(1, 0F, 0F, 0F, 2, 0F, 0F, 0F, sigma6, epsilon, 0F, sr2, sr6, 0F)
+        } else {
+            arr(i) = MoleculeInfo(1, 0F, 0F, 0F, 2, 0F, 0F, 0F, sigma6, epsilon, 0F, sr2, sr6, force)
         }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-
-        // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.force.bits.peek().litValue.toLong))) <= ERROR)
-        assert(Math.abs((force - floating32_to_decimal(dut.output.bits.force.bits.peek().litValue.toLong)) / force) <= ERROR)
-        
-        dut.clock.step(1)
-      }
-    }
-  }
-
-  "Testing CalcForce module (invalid input)" in {
-    test(new CalcForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
-      dut.output.ready.poke(true)
-
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
-        val sigma6 = get_float()
-        val epsilon = get_float()
-        val sr2 = get_float()
-        val sr6 = (sr2 * sr2 * sr2 * sigma6).toFloat
-        
-        dut.input.bits.error.poke(true)
-        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(epsilon))
-        dut.input.bits.sr2.bits.poke(decimal_to_floating32(sr2))
-        dut.input.bits.sr6.bits.poke(decimal_to_floating32(sr6))
-        dut.input.valid.poke(true)
-
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
-        }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(true)
-        
-        dut.clock.step(1)
-      }
-    }
-  }
-
-  "Testing CalculateForce module" in {
-    test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
-      dut.output.ready.poke(true)
-
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
-        val m1id = i
-        val m1x = get_float()
-        val m1y = get_float()
-        val m1z = get_float()
-
-        val m2id = i + 1
-        val m2x = get_float()
-        val m2y = get_float()
-        val m2z = get_float()
-
-        val sigma6 = get_float()
-        val epsilon = get_float()
-
-        val force = calc(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon)
-
-        dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
-        dut.sigma6WriteIO.validIn.poke(true)
-
-        dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
-        dut.epsilonWriteIO.validIn.poke(true)
-
-        dut.clock.step(1)
-        
-        dut.sigma6WriteIO.validIn.poke(false)
-        dut.epsilonWriteIO.validIn.poke(false)
-
-        // ------
-      
-        dut.input.bits.molecule1.id.poke(m1id)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
-
-        dut.input.bits.molecule2.id.poke(m2id)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m2x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m2y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m2z))
-
-        dut.input.valid.poke(true)
-
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
-        }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-        // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong))) <= ERROR)
-        assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) / force) <= ERROR)
-        
-        dut.clock.step(1)
-      }
-    }
-  }
-
-  "Testing CalculateForce module (invalid input)" in {
-    test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
-      dut.output.ready.poke(true)
-
-      for(i <- 0 until 3) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
-        val m1id = 1
-        val m2id = 2
-        val m1x = get_float()
-        val m1y = get_float()
-        val m1z = get_float()
-
-        val sigma6 = get_float()
-        val epsilon = get_float()
-
-        dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
-        dut.sigma6WriteIO.validIn.poke(true)
-
-        dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
-        dut.epsilonWriteIO.validIn.poke(true)
-
-        dut.clock.step(1)
-
-        dut.sigma6WriteIO.validIn.poke(false)
-        dut.epsilonWriteIO.validIn.poke(false)
-
-        // ------
-        
-        dut.input.bits.molecule1.id.poke(m1id)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
-
-        dut.input.bits.molecule2.id.poke(m2id)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m1x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m1y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m1z))
-
-        dut.input.valid.poke(true)
-
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
-          dut.input.valid.poke(false)
-        }
-
-        dut.output.valid.expect(true)
-        dut.output.bits.error.expect(true)
-
-        dut.clock.step(1)
-      }
-    }
-  }
-
-  "Testing CalculateForce module (pipelined)" in {
-    test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
-      dut.input.initSource()
-      dut.input.setSourceClock(dut.clock)
-      dut.output.initSink()
-      dut.output.setSinkClock(dut.clock)
-
-      var arr = new Array[MoleculeInfo](dut.dim / 2)
-      
-      // populate arr with all molecule info
-      for(i <- 0 until dut.dim / 2) {
-        val m1id = i * 2
-        val m1x = get_float()
-        val m1y = get_float()
-        val m1z = get_float()
-
-        val m2id = i * 2 + 1
-        val m2x = get_float()
-        val m2y = get_float()
-        val m2z = get_float()
-
-        val sigma6 = get_float()
-        val epsilon = get_float()
-
-        val force = calc(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon)
-
-        arr(i) = MoleculeInfo(m1id, m1x, m1y, m1z, m2id, m2x, m2y, m2z, sigma6, epsilon, force)
-
-        // put sigma6 + epsilon into tables
-        dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
-        dut.sigma6WriteIO.validIn.poke(true)
-
-        dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
-        dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
-        dut.epsilonWriteIO.validIn.poke(true)
-
-        dut.clock.step(1)
-        
-        dut.sigma6WriteIO.validIn.poke(false)
-        dut.epsilonWriteIO.validIn.poke(false)
-
-        dut.clock.step(1)
       }
 
-      dut.output.ready.poke(true) // always ready to receive 
-
-      for(i <- 0 until dut.dim / 2) {
-        while(!dut.input.ready.peek().litToBoolean) {
-          dut.clock.step(1) 
-        }
-
+      for(i <- 0 until dut.dim) {
         val entry = arr(i)
 
-        dut.input.bits.molecule1.id.poke(entry.m1id)
-        dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(entry.m1x))
-        dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(entry.m1y))
-        dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(entry.m1z))
-
-        dut.input.bits.molecule2.id.poke(entry.m2id)
-        dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(entry.m2x))
-        dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(entry.m2y))
-        dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(entry.m2z))
-
+        dut.input.bits.epsilon.bits.poke(decimal_to_floating32(entry.epsilon))
+        dut.input.bits.sr2.bits.poke(decimal_to_floating32(entry.sr2))
+        dut.input.bits.sr6.bits.poke(decimal_to_floating32(entry.sr6))
+        dut.input.bits.error.poke(i == dut.dim / 2)
         dut.input.valid.poke(true)
 
-        dut.clock.step(1)
-        dut.input.valid.poke(false)
-      }
-
-      for(i <- 0 until dut.dim / 2) {
-        while(!dut.output.valid.peek().litToBoolean) {
-          dut.output.bits.error.expect(false)
-          dut.clock.step(1)
+        while(!dut.input.ready.peek().litToBoolean) {
+            dut.clock.step(1) 
         }
 
-        val entry = arr(i)
-        val force = arr(i).force
+        dut.clock.step(1)
 
         dut.output.valid.expect(true)
-        dut.output.bits.error.expect(false)
-        // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong))) <= ERROR)
-        assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) / force) <= ERROR)
-      
-        dut.clock.step(1)
+        dut.output.bits.error.expect(i == dut.dim / 2)
+
+        if(i != dut.dim / 2) {
+            assert(Math.abs((entry.force - floating32_to_decimal(dut.output.bits.force.bits.peek().litValue.toLong)) / entry.force) <= ERROR)
+        }
       }
     }
   }
+
+//   "Testing CalculateForce module" in {
+//     test(new CalculateForce(dim=8, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+//       dut.output.ready.poke(true)
+
+//       var arr = new Array[MoleculeInfo](dut.dim)
+
+//       for(i <- 0 until dut.dim / 2) {
+//         val m1id = i * 2
+//         val m1x = get_float()
+//         val m1y = get_float()
+//         val m1z = get_float()
+
+//         val m2id = i * 2 + 1
+//         val m2x = get_float()
+//         val m2y = get_float()
+//         val m2z = get_float()
+
+//         val sigma6 = get_float()
+//         val epsilon = get_float()
+
+//         val force = calc(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon)
+
+//         if(i == dut.dim / 4) {
+//             arr(i) = MoleculeInfo(m1id, m1x, m1y, m1z, m2id, m1x, m1y, m1z, sigma6, epsilon, 0F, 0F, 0F, 0F)
+//         } else {
+//             arr(i) = MoleculeInfo(m1id, m1x, m1y, m1z, m2id, m2x, m2y, m2z, sigma6, epsilon, 0F, 0F, 0F, force)
+//         }
+
+//         dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
+//         dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
+//         dut.sigma6WriteIO.validIn.poke(true)
+
+//         dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
+//         dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
+//         dut.epsilonWriteIO.validIn.poke(true)
+
+//         dut.clock.step(1)
+
+//         dut.sigma6WriteIO.validIn.poke(false)
+//         dut.epsilonWriteIO.validIn.poke(false)
+//       }
+
+//       for(i <- 0 until dut.dim / 2) {
+//         val entry = arr(i)
+
+//         dut.input.bits.molecule1.id.poke(entry.m1id)
+//         dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(entry.m1x))
+//         dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(entry.m1y))
+//         dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(entry.m1z))
+
+//         dut.input.bits.molecule2.id.poke(entry.m2id)
+//         dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(entry.m2x))
+//         dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(entry.m2y))
+//         dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(entry.m2z))
+//         dut.input.valid.poke(true)
+
+//         while(!dut.input.ready.peek().litToBoolean) {
+//             dut.clock.step(1) 
+//         }
+
+//         dut.clock.step(1)
+
+//         dut.output.valid.expect(true)
+//         dut.output.bits.error.expect(i == dut.dim / 4)
+
+//         if(i != dut.dim / 4) {
+//             assert(Math.abs((entry.force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) / entry.force) <= ERROR)
+//         }
+//       }
+//     }
+//   }
+
+  // "Testing CalculateForce module" in {
+  //   test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+  //     dut.output.ready.poke(true)
+
+  //     for(i <- 0 until 3) {
+  //       while(!dut.input.ready.peek().litToBoolean) {
+  //         dut.clock.step(1) 
+  //       }
+
+  //       val m1id = i
+  //       val m1x = get_float()
+  //       val m1y = get_float()
+  //       val m1z = get_float()
+
+  //       val m2id = i + 1
+  //       val m2x = get_float()
+  //       val m2y = get_float()
+  //       val m2z = get_float()
+
+  //       val sigma6 = get_float()
+  //       val epsilon = get_float()
+
+  //       val force = calc(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon)
+
+  //       dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
+  //       dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
+  //       dut.sigma6WriteIO.validIn.poke(true)
+
+  //       dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
+  //       dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
+  //       dut.epsilonWriteIO.validIn.poke(true)
+
+  //       dut.clock.step(1)
+        
+  //       dut.sigma6WriteIO.validIn.poke(false)
+  //       dut.epsilonWriteIO.validIn.poke(false)
+
+  //       // ------
+      
+  //       dut.input.bits.molecule1.id.poke(m1id)
+  //       dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
+  //       dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
+  //       dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
+
+  //       dut.input.bits.molecule2.id.poke(m2id)
+  //       dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m2x))
+  //       dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m2y))
+  //       dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m2z))
+
+  //       dut.input.valid.poke(true)
+
+  //       while(!dut.output.valid.peek().litToBoolean) {
+  //         dut.output.bits.error.expect(false)
+  //         dut.clock.step(1)
+  //         dut.input.valid.poke(false)
+  //       }
+
+  //       dut.output.valid.expect(true)
+  //       dut.output.bits.error.expect(false)
+  //       // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong))) <= ERROR)
+  //       assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) / force) <= ERROR)
+        
+  //       dut.clock.step(1)
+  //     }
+  //   }
+  // }
+
+  // "Testing CalculateForce module (invalid input)" in {
+  //   test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)) { dut =>
+  //     dut.output.ready.poke(true)
+
+  //     for(i <- 0 until 3) {
+  //       while(!dut.input.ready.peek().litToBoolean) {
+  //         dut.clock.step(1) 
+  //       }
+
+  //       val m1id = 1
+  //       val m2id = 2
+  //       val m1x = get_float()
+  //       val m1y = get_float()
+  //       val m1z = get_float()
+
+  //       val sigma6 = get_float()
+  //       val epsilon = get_float()
+
+  //       dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
+  //       dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
+  //       dut.sigma6WriteIO.validIn.poke(true)
+
+  //       dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
+  //       dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
+  //       dut.epsilonWriteIO.validIn.poke(true)
+
+  //       dut.clock.step(1)
+
+  //       dut.sigma6WriteIO.validIn.poke(false)
+  //       dut.epsilonWriteIO.validIn.poke(false)
+
+  //       // ------
+        
+  //       dut.input.bits.molecule1.id.poke(m1id)
+  //       dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(m1x))
+  //       dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(m1y))
+  //       dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(m1z))
+
+  //       dut.input.bits.molecule2.id.poke(m2id)
+  //       dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(m1x))
+  //       dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(m1y))
+  //       dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(m1z))
+
+  //       dut.input.valid.poke(true)
+
+  //       while(!dut.output.valid.peek().litToBoolean) {
+  //         dut.output.bits.error.expect(false)
+  //         dut.clock.step(1)
+  //         dut.input.valid.poke(false)
+  //       }
+
+  //       dut.output.valid.expect(true)
+  //       dut.output.bits.error.expect(true)
+
+  //       dut.clock.step(1)
+  //     }
+  //   }
+  // }
+
+  // "Testing CalculateForce module (pipelined)" in {
+  //   test(new CalculateForce(dim=4, expWidth=8, sigWidth=24)).withAnnotations(Seq(WriteVcdAnnotation)) { dut =>
+  //     dut.input.initSource()
+  //     dut.input.setSourceClock(dut.clock)
+  //     dut.output.initSink()
+  //     dut.output.setSinkClock(dut.clock)
+
+  //     var arr = new Array[MoleculeInfo](dut.dim / 2)
+      
+  //     // populate arr with all molecule info
+  //     for(i <- 0 until dut.dim / 2) {
+  //       val m1id = i * 2
+  //       val m1x = get_float()
+  //       val m1y = get_float()
+  //       val m1z = get_float()
+
+  //       val m2id = i * 2 + 1
+  //       val m2x = get_float()
+  //       val m2y = get_float()
+  //       val m2z = get_float()
+
+  //       val sigma6 = get_float()
+  //       val epsilon = get_float()
+
+  //       val force = calc(m1x, m1y, m1z, m2x, m2y, m2z, sigma6, epsilon)
+
+  //       arr(i) = MoleculeInfo(m1id, m1x, m1y, m1z, m2id, m2x, m2y, m2z, sigma6, epsilon, force)
+
+  //       // put sigma6 + epsilon into tables
+  //       dut.sigma6WriteIO.addr.poke(m1id * dut.dim + m2id)
+  //       dut.sigma6WriteIO.data.bits.poke(decimal_to_floating32(sigma6))
+  //       dut.sigma6WriteIO.validIn.poke(true)
+
+  //       dut.epsilonWriteIO.addr.poke(m1id * dut.dim + m2id)
+  //       dut.epsilonWriteIO.data.bits.poke(decimal_to_floating32(epsilon))
+  //       dut.epsilonWriteIO.validIn.poke(true)
+
+  //       dut.clock.step(1)
+        
+  //       dut.sigma6WriteIO.validIn.poke(false)
+  //       dut.epsilonWriteIO.validIn.poke(false)
+
+  //       dut.clock.step(1)
+  //     }
+
+  //     dut.output.ready.poke(true) // always ready to receive 
+
+  //     for(i <- 0 until dut.dim / 2) {
+  //       while(!dut.input.ready.peek().litToBoolean) {
+  //         dut.clock.step(1) 
+  //       }
+
+  //       val entry = arr(i)
+
+  //       dut.input.bits.molecule1.id.poke(entry.m1id)
+  //       dut.input.bits.molecule1.x.bits.poke(decimal_to_floating32(entry.m1x))
+  //       dut.input.bits.molecule1.y.bits.poke(decimal_to_floating32(entry.m1y))
+  //       dut.input.bits.molecule1.z.bits.poke(decimal_to_floating32(entry.m1z))
+
+  //       dut.input.bits.molecule2.id.poke(entry.m2id)
+  //       dut.input.bits.molecule2.x.bits.poke(decimal_to_floating32(entry.m2x))
+  //       dut.input.bits.molecule2.y.bits.poke(decimal_to_floating32(entry.m2y))
+  //       dut.input.bits.molecule2.z.bits.poke(decimal_to_floating32(entry.m2z))
+
+  //       dut.input.valid.poke(true)
+
+  //       dut.clock.step(1)
+  //       dut.input.valid.poke(false)
+  //     }
+
+  //     for(i <- 0 until dut.dim / 2) {
+  //       while(!dut.output.valid.peek().litToBoolean) {
+  //         dut.output.bits.error.expect(false)
+  //         dut.clock.step(1)
+  //       }
+
+  //       val entry = arr(i)
+  //       val force = arr(i).force
+
+  //       dut.output.valid.expect(true)
+  //       dut.output.bits.error.expect(false)
+  //       // assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong))) <= ERROR)
+  //       assert(Math.abs((force - floating32_to_decimal(dut.output.bits.data.bits.peek().litValue.toLong)) / force) <= ERROR)
+      
+  //       dut.clock.step(1)
+  //     }
+  //   }
+  // }
 }

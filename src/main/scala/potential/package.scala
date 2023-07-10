@@ -16,6 +16,9 @@ package object potential {
     m2z: scala.Float,
     sigma6: scala.Float,
     epsilon: scala.Float,
+    rsq: scala.Float,
+    sr2: scala.Float,
+    sr6: scala.Float,
     force: scala.Float
   )
 
