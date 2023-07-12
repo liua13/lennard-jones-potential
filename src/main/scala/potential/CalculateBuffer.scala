@@ -43,4 +43,6 @@ class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int) extends Module
     output.valid := calculateForce.output.valid
     output.bits.data := calculateForce.output.bits.data
     output.bits.error := calculateForce.output.bits.error
+
+    input.ready := true.B
 }

@@ -117,26 +117,25 @@ class CalcSr2(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
 
     val outputReg = Reg(CalcSr2OutputBundle(dim, expWidth, sigWidth))
     val outputRegValid = Reg(Bool())
+    val dividerReady = Reg(Bool())
 
     val dividerValidIn = input.valid && (output.ready || !output.valid) && !input.bits.error 
     val divider = (one./(input.bits.rsq, dividerValidIn)).get
 
-    // outputRegValid := divider.valid || (input.valid && input.bits.error)
-    // outputReg.error := input.bits.error
-    // outputReg.sigma6 := input.bits.sigma6
-    // outputReg.epsilon := input.bits.epsilon
-    // outputReg.sr2 := divider.bits
-    // input.ready := divider.ready && (output.ready || !output.valid)
+    dividerReady := divider.ready
+    input.ready := dividerReady && (output.ready || !output.valid)
 
-    // output.bits := outputReg
-    // output.valid := outputRegValid
-
-    input.ready := divider.ready && (output.ready || !output.valid)
-
-    when(output.ready || !output.valid) { // todo: !outputReg.sr2??
+    when(dividerReady && input.valid) { //  && (output.ready || !output.valid)
         outputReg.error := input.bits.error
         outputReg.sigma6 := input.bits.sigma6
         outputReg.epsilon := input.bits.epsilon
+    }.otherwise {
+        outputReg.error := outputReg.error
+        outputReg.sigma6 := outputReg.sigma6
+        outputReg.epsilon := outputReg.epsilon
+    }
+
+    when(output.ready || !output.valid) {
         outputReg.sr2 := divider.bits
         outputRegValid := (input.valid && input.bits.error) || divider.valid
     }.otherwise {
@@ -246,95 +245,127 @@ class CalculateForce(val dim: Int, expWidth: Int, sigWidth: Int) extends Module 
     val calcSr6 = Module(new CalcSr6(dim, expWidth, sigWidth))
     val calcForce = Module(new CalcForce(dim, expWidth, sigWidth))
 
-    val initializeOutputReg = Reg(new Bundle{
+    val inputReg = Reg(new Bundle{
+        val valid = Bool()
         val bits = InitializeOutputBundle(dim, expWidth, sigWidth)
-        val sigma6 = Float(expWidth, sigWidth)
-        val epsilon = Float(expWidth, sigWidth)
-        val valid = Bool()
-    })
-    val calcRsqOutputReg = Reg(new Bundle{
-        val bits = CalcRsqOutputBundle(dim, expWidth, sigWidth)
-        val valid = Bool()
-    })
-    val calcSr2OutputReg = Reg(new Bundle{
-        val bits = CalcSr2OutputBundle(dim, expWidth, sigWidth)
-        val valid = Bool()
-    })
-    val calcSr6OutputReg = Reg(new Bundle{
-        val bits = CalcSr6OutputBundle(dim, expWidth, sigWidth)
-        val valid = Bool()
     })
 
-    // both initialize and the LUT should complete in one clock cycle
-    initialize.input.valid := input.valid && initialize.input.ready
+    input.ready := initialize.input.ready
+
+    initialize.input.valid := input.valid
     initialize.input.bits.molecule1 := input.bits.molecule1
     initialize.input.bits.molecule2 := input.bits.molecule2
-    initialize.output.ready := !initializeOutputReg.valid // RegNext(calcRsq.input.ready)
+    initialize.output.ready := calcRsq.input.ready // RegNext(calcRsq.input.ready)
 
-    sigma6Table.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
-    epsilonTable.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
+    // LUT should take one clock cycle; inputReg holds for one clock cycle
+    inputReg.valid := initialize.output.valid
+    inputReg.bits := initialize.output.bits
 
-    when(initializeOutputReg.valid && !calcRsq.input.ready) {
-        initializeOutputReg := initializeOutputReg
-    }.otherwise {
-        initializeOutputReg.valid := initialize.output.valid
-        initializeOutputReg.bits := initialize.output.bits
-        initializeOutputReg.sigma6 := sigma6Table.readIO.data
-        initializeOutputReg.epsilon := epsilonTable.readIO.data
-    }
+    sigma6Table.readIO.addr := (initialize.output.bits.molecule1.id << log2Up(dim).U) + initialize.output.bits.molecule2.id
+    epsilonTable.readIO.addr := (initialize.output.bits.molecule1.id << log2Up(dim).U) + initialize.output.bits.molecule2.id
 
-    calcRsq.input.valid := initializeOutputReg.valid && calcRsq.input.ready
-    calcRsq.input.bits.error := initializeOutputReg.bits.error
-    calcRsq.input.bits.molecule1 := initializeOutputReg.bits.molecule1
-    calcRsq.input.bits.molecule2 := initializeOutputReg.bits.molecule2
-    calcRsq.input.bits.sigma6 := initializeOutputReg.sigma6
-    calcRsq.input.bits.epsilon := initializeOutputReg.epsilon
-    calcRsq.output.ready := !calcRsqOutputReg.valid
+    calcRsq.input.valid := inputReg.valid 
+    calcRsq.input.bits.error := inputReg.bits.error
+    calcRsq.input.bits.molecule1 := inputReg.bits.molecule1
+    calcRsq.input.bits.molecule2 := inputReg.bits.molecule2
+    calcRsq.input.bits.sigma6 := sigma6Table.readIO.data // initialize.output.bits.sigma6
+    calcRsq.input.bits.epsilon := epsilonTable.readIO.data // initialize.output.bits.sigma6
+    calcRsq.output.ready := calcSr2.input.ready
 
-    when(calcRsqOutputReg.valid && !calcSr2.input.ready) { 
-        calcRsqOutputReg := calcRsqOutputReg
-    }.otherwise {
-        calcRsqOutputReg.valid := calcRsq.output.valid
-        calcRsqOutputReg.bits := calcRsq.output.bits
-    }
+    calcSr2.input.valid := calcRsq.output.valid
+    calcSr2.input.bits.error := calcRsq.output.bits.error
+    calcSr2.input.bits.sigma6 := calcRsq.output.bits.sigma6
+    calcSr2.input.bits.epsilon := calcRsq.output.bits.epsilon
+    calcSr2.input.bits.rsq := calcRsq.output.bits.rsq
+    calcSr2.output.ready := calcSr6.input.ready
 
-    calcSr2.input.valid := calcRsqOutputReg.valid && calcSr2.input.ready
-    calcSr2.input.bits.error := calcRsqOutputReg.bits.error
-    calcSr2.input.bits.sigma6 := calcRsqOutputReg.bits.sigma6
-    calcSr2.input.bits.epsilon := calcRsqOutputReg.bits.epsilon
-    calcSr2.input.bits.rsq := calcRsqOutputReg.bits.rsq
-    calcSr2.output.ready := !calcSr2OutputReg.valid
+    calcSr6.input.valid := calcSr2.output.valid
+    calcSr6.input.bits.error := calcSr2.output.bits.error
+    calcSr6.input.bits.sigma6 := calcSr2.output.bits.sigma6
+    calcSr6.input.bits.epsilon := calcSr2.output.bits.epsilon
+    calcSr6.input.bits.sr2 := calcSr2.output.bits.sr2
+    calcSr6.output.ready := calcForce.input.ready
 
-    when(calcSr2OutputReg.valid && !calcSr6.input.ready) { 
-        calcSr2OutputReg := calcSr2OutputReg
-    }.otherwise {
-        calcSr2OutputReg.valid := calcSr2.output.valid
-        calcSr2OutputReg.bits := calcSr2.output.bits
-    }
-
-    calcSr6.input.valid := calcSr2OutputReg.valid && calcSr6.input.ready
-    calcSr6.input.bits.error := calcSr2OutputReg.bits.error
-    calcSr6.input.bits.sigma6 := calcSr2OutputReg.bits.sigma6
-    calcSr6.input.bits.epsilon := calcSr2OutputReg.bits.epsilon
-    calcSr6.input.bits.sr2 := calcSr2OutputReg.bits.sr2
-    calcSr6.output.ready := !calcSr6OutputReg.valid
-
-    when(calcSr6OutputReg.valid && !calcForce.input.ready) { 
-        calcSr6OutputReg := calcSr6OutputReg
-    }.otherwise {
-        calcSr6OutputReg.valid := calcSr6.output.valid
-        calcSr6OutputReg.bits := calcSr6.output.bits
-    }
-
-    calcForce.input.valid := calcSr6OutputReg.valid && calcForce.input.ready
-    calcForce.input.bits.error := calcSr6OutputReg.bits.error
-    calcForce.input.bits.epsilon := calcSr6OutputReg.bits.epsilon
-    calcForce.input.bits.sr2 := calcSr6OutputReg.bits.sr2
-    calcForce.input.bits.sr6 := calcSr6OutputReg.bits.sr6
+    calcForce.input.valid := calcSr6.output.valid
+    calcForce.input.bits.error := calcSr6.output.bits.error
+    calcForce.input.bits.epsilon := calcSr6.output.bits.epsilon
+    calcForce.input.bits.sr2 := calcSr6.output.bits.sr2
+    calcForce.input.bits.sr6 := calcSr6.output.bits.sr6
     calcForce.output.ready := output.ready
     
-    input.ready := initialize.input.ready
     output.valid := calcForce.output.valid
     output.bits.error := calcForce.output.bits.error
     output.bits.data := calcForce.output.bits.force
 }
+
+// initialize.input.valid := input.valid && initialize.input.ready
+// initialize.input.bits.molecule1 := input.bits.molecule1
+// initialize.input.bits.molecule2 := input.bits.molecule2
+// initialize.output.ready := !initializeOutputReg.valid // RegNext(calcRsq.input.ready)
+
+// sigma6Table.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
+// epsilonTable.readIO.addr := (input.bits.molecule1.id << log2Up(dim).U) + input.bits.molecule2.id
+
+// when(initializeOutputReg.valid && !calcRsq.input.ready) {
+//     initializeOutputReg := initializeOutputReg
+// }.otherwise {
+//     initializeOutputReg.valid := initialize.output.valid
+//     initializeOutputReg.bits := initialize.output.bits
+//     initializeOutputReg.sigma6 := sigma6Table.readIO.data
+//     initializeOutputReg.epsilon := epsilonTable.readIO.data
+// }
+
+// calcRsq.input.valid := initializeOutputReg.valid && calcRsq.input.ready
+// calcRsq.input.bits.error := initializeOutputReg.bits.error
+// calcRsq.input.bits.molecule1 := initializeOutputReg.bits.molecule1
+// calcRsq.input.bits.molecule2 := initializeOutputReg.bits.molecule2
+// calcRsq.input.bits.sigma6 := initializeOutputReg.sigma6
+// calcRsq.input.bits.epsilon := initializeOutputReg.epsilon
+// calcRsq.output.ready := !calcRsqOutputReg.valid
+
+// when(calcRsqOutputReg.valid && !calcSr2.input.ready) { 
+//     calcRsqOutputReg := calcRsqOutputReg
+// }.otherwise {
+//     calcRsqOutputReg.valid := calcRsq.output.valid
+//     calcRsqOutputReg.bits := calcRsq.output.bits
+// }
+
+// calcSr2.input.valid := calcRsqOutputReg.valid && calcSr2.input.ready
+// calcSr2.input.bits.error := calcRsqOutputReg.bits.error
+// calcSr2.input.bits.sigma6 := calcRsqOutputReg.bits.sigma6
+// calcSr2.input.bits.epsilon := calcRsqOutputReg.bits.epsilon
+// calcSr2.input.bits.rsq := calcRsqOutputReg.bits.rsq
+// calcSr2.output.ready := !calcSr2OutputReg.valid
+
+// when(calcSr2OutputReg.valid && !calcSr6.input.ready) { 
+//     calcSr2OutputReg := calcSr2OutputReg
+// }.otherwise {
+//     calcSr2OutputReg.valid := calcSr2.output.valid
+//     calcSr2OutputReg.bits := calcSr2.output.bits
+// }
+
+// calcSr6.input.valid := calcSr2OutputReg.valid && calcSr6.input.ready
+// calcSr6.input.bits.error := calcSr2OutputReg.bits.error
+// calcSr6.input.bits.sigma6 := calcSr2OutputReg.bits.sigma6
+// calcSr6.input.bits.epsilon := calcSr2OutputReg.bits.epsilon
+// calcSr6.input.bits.sr2 := calcSr2OutputReg.bits.sr2
+// calcSr6.output.ready := !calcSr6OutputReg.valid
+
+// when(calcSr6OutputReg.valid && !calcForce.input.ready) { 
+//     calcSr6OutputReg := calcSr6OutputReg
+// }.otherwise {
+//     calcSr6OutputReg.valid := calcSr6.output.valid
+//     calcSr6OutputReg.bits := calcSr6.output.bits
+// }
+
+// calcForce.input.valid := calcSr6OutputReg.valid && calcForce.input.ready
+// calcForce.input.bits.error := calcSr6OutputReg.bits.error
+// calcForce.input.bits.epsilon := calcSr6OutputReg.bits.epsilon
+// calcForce.input.bits.sr2 := calcSr6OutputReg.bits.sr2
+// calcForce.input.bits.sr6 := calcSr6OutputReg.bits.sr6
+// calcForce.output.ready := output.ready
+
+// input.ready := initialize.input.ready
+// output.valid := calcForce.output.valid
+// output.bits.error := calcForce.output.bits.error
+// output.bits.data := calcForce.output.bits.force
