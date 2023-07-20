@@ -5,7 +5,8 @@ import chisel3.util._
 import hardfloat._
 import potential.Arithmetic.FloatArithmetic._
 
-class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int) extends Module {
+// NOTE: dim must be a power of 2
+class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int, val entries: Int) extends Module {
     val input = IO(Flipped(Decoupled(new CFInputBundle(dim, expWidth, sigWidth))))
     val output = IO(Decoupled(new CFOutputBundle(dim, expWidth, sigWidth)))
     
@@ -18,31 +19,11 @@ class CalculateBuffer(val dim: Int, expWidth: Int, sigWidth: Int) extends Module
     val epsilonWriteIO = IO(new LUTWriteIO(dim * dim, expWidth, sigWidth))
     calculateForce.epsilonWriteIO <> epsilonWriteIO
 
-    val m1 = Reg(new MoleculeBundle(dim, expWidth, sigWidth))
-    val m2 = Reg(new MoleculeBundle(dim, expWidth, sigWidth))
+    val qin = Module(new Queue(new CFInputBundle(dim, expWidth, sigWidth), entries))
+    qin.io.enq <> input
+    qin.io.deq <> calculateForce.input
 
-    val q = Queue(input)
-    q.nodeq() 
-
-    calculateForce.input.valid := false.B
-
-    when(q.valid && calculateForce.input.ready) {
-        val qVal = q.deq()
-        calculateForce.input.bits.molecule1 := qVal.molecule1
-        calculateForce.input.bits.molecule2 := qVal.molecule2
-        calculateForce.input.valid := true.B
-
-        m1 := qVal.molecule1
-        m2 := qVal.molecule2
-    }.otherwise {
-        calculateForce.input.bits.molecule1 := m1
-        calculateForce.input.bits.molecule2 := m2
-        calculateForce.input.valid := false.B
-    }
-
-    output.valid := calculateForce.output.valid
-    output.bits.data := calculateForce.output.bits.data
-    output.bits.error := calculateForce.output.bits.error
-
-    input.ready := true.B
+    val qout = Module(new Queue(new CFOutputBundle(dim, expWidth, sigWidth), entries))
+    qout.io.enq <> calculateForce.output
+    qout.io.deq <> output
 }

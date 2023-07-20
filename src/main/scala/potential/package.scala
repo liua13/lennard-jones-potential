@@ -14,6 +14,7 @@ package object potential {
     m2x: scala.Float,
     m2y: scala.Float,
     m2z: scala.Float,
+    index: scala.Int,
     sigma6: scala.Float,
     epsilon: scala.Float,
     rsq: scala.Float,
@@ -196,25 +197,16 @@ package object potential {
     return force
   }
 
-  // def calc(m1x: scala.Double, m1y: scala.Double, m1z: scala.Double, m2x: scala.Double, m2y: scala.Double, m2z: scala.Double, sigma6: scala.Double, epsilon: scala.Double): scala.Float = {
-  //   val delx: scala.Float = m2x.toFloat - m1x.toFloat
-  //   val dely: scala.Float = m2y.toFloat - m1y.toFloat
-  //   val delz: scala.Float = m2z.toFloat - m1z.toFloat
-  //   val rsq: scala.Float = delx * delx + dely * dely + delz * delz
-  //   val sr2: scala.Float = 1.0F / rsq
-  //   val sr6: scala.Float = sr2 * sr2 * sr2 * sigma6.toFloat
-  //   val force: scala.Float = 48.0F * sr6 * (sr6 - 0.5F) * sr2 * epsilon.toFloat
-  //   return force
-  // }
+  def getTable(dim: Int): Array[scala.Float] = {
+    var table = new Array[scala.Float](dim * dim)
 
-  def calc2(m1x: scala.Double, m1y: scala.Double, m1z: scala.Double, m2x: scala.Double, m2y: scala.Double, m2z: scala.Double, sigma6: scala.Double, epsilon: scala.Double): scala.Float = {
-    val delx = m2x - m1x
-    val dely = m2y - m1y
-    val delz = m2z - m1z
-    val rsq = delx * delx + dely * dely + delz * delz
-    val sr2 = 1.0 / rsq
-    val sr6 = sr2 * sr2 * sr2 * sigma6
-    val force = 48.0 * sr6 * (sr6 - 0.5) * sr2 * epsilon
-    return force.toFloat
+    for(i <- 0 until dim) {
+        for(j <- i + 1 until dim) {
+          val f = get_float()
+          table(i * dim + j) = f
+          table(j * dim + i) = f
+        }
+    }
+    return table
   }
 }
